@@ -1,0 +1,52 @@
+{
+  "en": {
+    "file": "en.json",
+    "name": "English",
+    "direction": "ltr"
+  },
+  "ru": {
+    "file": "ru.json",
+    "name": "Русский",
+    "direction": "ltr"
+  },
+  "de": {
+    "file": "de.json",
+    "name": "Deutsch",
+    "direction": "ltr"
+  },
+  "fr": {
+    "file": "fr.json",
+    "name": "Français",
+    "direction": "ltr"
+  },
+  "es": {
+    "file": "es.json",
+    "name": "Español",
+    "direction": "ltr"
+  },
+  "it": {
+    "file": "it.json",
+    "name": "Italiano",
+    "direction": "ltr"
+  },
+  "pt": {
+    "file": "pt.json",
+    "name": "Português",
+    "direction": "ltr"
+  },
+  "zh": {
+    "file": "zh.json",
+    "name": "简体中文",
+    "direction": "ltr"
+  },
+  "ja": {
+    "file": "ja.json",
+    "name": "日本語",
+    "direction": "ltr"
+  },
+  "ko": {
+    "file": "ko.json",
+    "name": "한국어",
+    "direction": "ltr"
+  }
+}

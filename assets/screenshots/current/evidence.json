@@ -1,0 +1,299 @@
+{
+  "capturedAt": "2026-09-27",
+  "pluginId": "io.github.pavellizunov.mx-ergo",
+  "consumer": "ErgoPanel.qml",
+  "head": "7e968c0d9a3f7ddc084bc80971dba77060357997",
+  "dirtyCandidate": true,
+  "backend": "QT_QPA_PLATFORM=offscreen; QT_QUICK_BACKEND=software",
+  "packages": [
+    "omarchy 4.0.4-1",
+    "qt6-base 6.11.2-3",
+    "qt6-declarative 6.11.2-1",
+    "quickshell 0.3.1-1"
+  ],
+  "candidateInputs": {
+    "BarWidget.qml": "d16c7b6dcfce57e498c673a408e1e0c8026787d6a4b5f35d11ced9b0b71946f1",
+    "Battery.js": "54b2dcacbf8e881211103fe74ea15533318ee3bddd740fdc27b5e1b5e696e9d8",
+    "ButtonActionPicker.qml": "caaa204d8bfb95972d94e1cbedb4f69c399f74fd264a3b0356cdead5cb8cdf05",
+    "ButtonProfiles.js": "a1d6a497d3427f4d5518bfc4f73426bc15ba6c1483332b3646b7cb2cabfa98f8",
+    "ButtonProfilesPanel.qml": "80c92ed7ec38e333c1a0c730c631de0779d43d7eb799e91fb3ff8f40627dfdcd",
+    "ErgoControl.qml": "1f7c949e7f429d518f941059a681fa977f996eb50ffbc1d13a3c2dbd5d2a4d9a",
+    "ErgoModel.qml": "d1a7a410a4209ba0e2452940924f3b6daf02919838d55586ec3ddd5743e216db",
+    "ErgoPanel.qml": "10489349d86d21a1d4cf0f440e9ec711649049007644b21324ec2c7fc63c5287",
+    "I18n.js": "e6903ec38f7b65646e74881c2a94a4929197525f5db7b7e6f8534bae4c3eaf9b",
+    "PowerDevice.qml": "74e83be4e5a42cca44b92ae5635ab3d17917e5dc77f6466d302dc8739a38ff7e",
+    "TrackballMap.qml": "853006aa69c97eb6ed1a909d81bfda81da3d92dac18549b909bb7d8b59026058",
+    "manifest.json": "27790c1015854d25a0a4d75c5b067d4be5bcb79464950a8941650518670cb42d",
+    "assets/trackball-map.png": "ffaca845e533f7323f0d79b5b397c9c95b783b0f98dc1ea6c2f6c10d24234f3f",
+    "assets/trackball.svg": "7c98c2d8a519027975bcf0fe0792e3693ae41457e56a55a1d21d702ef6d2276e",
+    "locales/de.json": "b40d58b38429d39cc73a1eda45fcfa762c8c318c87b9eb7c16f4fc74bfbec754",
+    "locales/en.json": "28e2a9b5cf5bba8f78219ab8ee67e7446bff4b55bcb2cf6838627ece50de0574",
+    "locales/es.json": "8293358446e9cefb52e34da2e1ab2a722a3ffa733113d72daa48b0d2d66b4c93",
+    "locales/fr.json": "a4aefe4503f18cb92146937a69e6279a786c9acd88720ed111810f9418a65795",
+    "locales/index.json": "55ce9fd6967434bddc84a248d3bfc563169b5a9700160fb44f38f72d3954eeef",
+    "locales/it.json": "7128fd30949230670dde1f50a53726c1c7caad33eff75a1461fa61d6fd68a4c1",
+    "locales/ja.json": "eab35ed82e97064b4c95ce53be963f39796bf1b41d8a830266981488ced43a95",
+    "locales/ko.json": "9213de554f092c27e9272c13a8b5d5449cee33bc865ec7c380f593809b11fe47",
+    "locales/pt.json": "aa86e6cb9ba6a2534ed4947927be78b460795a5b6f2f0c6af1ed5863e7b9e68f",
+    "locales/ru.json": "59b4aa8731ed4e19724cc6ecf81fe0ea7c5d354f8a684cbf3f4645760887845f",
+    "locales/zh.json": "9903e83bd6d7493d7531079698a571d45a067546c21cefc5149b8daa893a6e9f",
+    "scripts/apply-settings.py": "d1e193252f9e8e7e655e323e00a10d98ab8358f0110a5de7f2620dc8f9cf2b86",
+    "scripts/bluetooth-client.py": "8a66fed1e08146fb1985594d303578368ae7f7509774cc97584144c0f7fd3c91",
+    "scripts/config-store.py": "bc4972a1773a93f529081c1d292ebc39016f790e1b7f69091790a1763b57713c",
+    "tests/battery.js": "a60654e63c6ddd3d812c7615dfd6fd39fa41ae142e096c5dc683f58d6f70285d",
+    "tests/bluetooth-model.js": "1faf63f72c89ce2d8d8620cdeb6884e25fae2dee9bc2a30344bc38805376af1e",
+    "tests/bluetooth-profile.py": "a88fbbd45b494dedff2586db7c1739ab26a0b228fe76a7663a19a5c4159cead7",
+    "tests/bluetooth-recovery.js": "8fbfd85fc9f49f35b48924d3818af669ddd815e91b9777cced8c63477b26ad27",
+    "tests/button-profiles.js": "073f61855e9b9eec81a66db0b021ff14bdf0e34f285270dde366c485b655dd84",
+    "tests/config-model.js": "b7a3882799f6c18f1dcac82ee83cbb3b0847bb474c3760e821df20b2ec765576",
+    "tests/config-store.py": "ea019efa1cc109653ad96202cd817cffebc8830e72474b09aebf6e0fa78fb646",
+    "tests/hyprland-reload.js": "c8a851b1e0d8a6e73a603a633cd80236fbb4598810a3dee13b643df1c4fd75f9",
+    "tests/i18n-completeness.js": "fd0cff19b6f173b0ead5688f8c819f5ec861bef88b653bddcb11a883d2e8e241",
+    "tests/model-contract.js": "785ea43fbc4ec866a0b461c842b1d66e42ea25ec0faa58b980d09c81a82798a8",
+    "tests/panel-navigation.js": "836717363ba2828c77fb54b39676858aafbbdc6e8b030f260960f318e21a091c",
+    "tests/panel-scroll.js": "fff566e826ac9f643ae3e1edac3dcec4ca2b88a9707649d767c32dad457e8fdc",
+    "tests/profiles-ui.py": "c374398adc1ccc67e1b129778e10e9a20a41f9f25b704fb581fb7cbff999d024",
+    "tests/qml-lint.py": "bb99b20e0d88d37e4d4b1ca3defab0b8667b9474a4e7b13085788be2ffc533e7",
+    "tests/run.sh": "1a6900ca8e849d1b44a35065cb45124a02b387c9db7e1b9c8fe971140060c7b8",
+    "tests/sleep-lifecycle.js": "4181ebb6b38f6e8bf9073272bff25205d4453008c89c8b69605efb05d43f9f5f",
+    "tests/test_apply_settings.py": "73a98e531c25c14dc2b745ac4cc6f19cd7b7c7b9906597c6c308af88f1b9cfcb",
+    "tests/wake-retry.js": "ccb5d50d684e02f55e1fdc7b9073a5da21b8dd2c81387c48d9cabfe4a3aa558c",
+    "docs/omarchy-design-review-proposal/destinations.json": "b5d06af5ac27989af76b66346c01bcd7ee7b27eacec6078dc7334a23dc77e37b",
+    "tests/profiles-ui/tst_editor.qml": "2a956244d104658eb7e22aa5e7dd27249451d058e6e02c0a7b8b409011f5cefd",
+    "tests/profiles-ui/tst_profiles.qml": "5796575ab37897f5a4dd4c42b13869f792140f81626e0703c69bcda8ea2766df",
+    "tests/ui/tst_trackball.qml": "8b0dae983766d571a91b93b13af792813583c3be0999dafa665e1f19f933c668"
+  },
+  "installedHostInputs": {
+    "/usr/share/omarchy/shell/Commons/Border.qml": "b98c82530126fc10a287845e8df574ae26fa05b6064d93451d93d0ee9c3f7166",
+    "/usr/share/omarchy/shell/Commons/BorderGeometry.js": "8b99fb8d32a2f4ccb72f09a1c6421771d7329555c59bff69d181f1218033c85d",
+    "/usr/share/omarchy/shell/Commons/Color.qml": "cc9b62e2eaf8c307aa02206d9320c3d0ca349cf8feed452a6eddf387adaa5320",
+    "/usr/share/omarchy/shell/Commons/Style.qml": "f5901092617ae62645597199270afd4dfb0644d596bdfff16e1834fca6ad7243",
+    "/usr/share/omarchy/shell/Commons/Util.qml": "6894c63190973b5dbe50b13b3f7a99dd5770e143699f3aae1650fb65ca3ebe9b",
+    "/usr/share/omarchy/shell/Commons/qmldir": "5593fa25d33b1e2d3ed8628ca2e0dce5074497608f2bad6652689e390727e5e8",
+    "/usr/share/omarchy/shell/Ui/BarIconButton.qml": "bae9894d021655105b67d4ae7dec734bcd36ebf3b17a4aaef2c462e0cfa0c874",
+    "/usr/share/omarchy/shell/Ui/BarIndicator.qml": "5ed0ecd4be63cbe51a732900ffe7a06ed02f89e176207a42258021d2631e6d4a",
+    "/usr/share/omarchy/shell/Ui/BarWidget.qml": "8be00e2553a486b3dbfcb4f99de976035f323c4061b993dbc1842c75ff8b9022",
+    "/usr/share/omarchy/shell/Ui/BorderOverlay.qml": "c0aaf4f8a080712bf8dce2360d496ba1a63dcacb982a0fd9ed15bc51be333d66",
+    "/usr/share/omarchy/shell/Ui/BorderSurface.qml": "e17d8150d0b0e60f431bd6df5e661f5d9fe1f5eec9c2e2420f6eff2179a45baf",
+    "/usr/share/omarchy/shell/Ui/Button.qml": "fda48672cc11dba109acea1cc98eb4b29746e5ce09f90a47f487b776ff99e799",
+    "/usr/share/omarchy/shell/Ui/ButtonGroup.qml": "4af792f394534b7d61b270fcb44203bba8d88ed25f8822e0b90e456e35487542",
+    "/usr/share/omarchy/shell/Ui/ConfirmDialog.qml": "969cafe0580acb66d47947b7b6e9fa5103e1911b3a7dee03b84f2b154afc2762",
+    "/usr/share/omarchy/shell/Ui/CursorSurface.qml": "27844a40fbe378e84c0aea35654dd8b396afb7e331c86be80852e1529da4f5b2",
+    "/usr/share/omarchy/shell/Ui/Dropdown.qml": "6e2b847a33f5dedb96f65757d284f40b90073b3b34fd31abb84b2d471814fc5c",
+    "/usr/share/omarchy/shell/Ui/KeyboardPanel.qml": "96245f2da8d38baa0017caa285d596c485bd19a3a4d2cd1675bee9d84ffba42d",
+    "/usr/share/omarchy/shell/Ui/MultiSelect.qml": "ed85c2bf48ca17a059611b582d3d650eb2a1ad37cff2b700ca0c6c441a4c52df",
+    "/usr/share/omarchy/shell/Ui/NumberField.qml": "b3584b513ee720f9f3e0f098d19ca1b129a02270c140528455d88fe04e2f2c8b",
+    "/usr/share/omarchy/shell/Ui/OpticalGlyph.qml": "293e2863c7ff18998a7aea651fa952a564a860df125bf8900b7e739500b3c352",
+    "/usr/share/omarchy/shell/Ui/Panel.qml": "e6588b3d7c1075d68c6392d028483fcc5d4d2bcb29180758fe265a957cbdc71d",
+    "/usr/share/omarchy/shell/Ui/PanelActionButton.qml": "6c94ff62997f18d1712a741e8ae24ed98a6fa5c6350b266c631ff92f26cffdc7",
+    "/usr/share/omarchy/shell/Ui/PanelController.qml": "4c08895559a2a7634f6513cb08eda6e05f6ac0bf3d940085229d594b2f383108",
+    "/usr/share/omarchy/shell/Ui/PanelHero.qml": "bf0753e69c91c906b8f1e1a46cfbbd4326228e9d9abde1b4007ee86c0bf78f05",
+    "/usr/share/omarchy/shell/Ui/PanelKeyCatcher.qml": "76abaf157317ea260b81591a614460dfbc7173f545963be25558ed5a8cddedb4",
+    "/usr/share/omarchy/shell/Ui/PanelSectionHeader.qml": "ede63ff97dd3d4d2198b771cbb33dcd07b7026d64d92f1c624e71465d000115d",
+    "/usr/share/omarchy/shell/Ui/PanelSeparator.qml": "667cd49e89c5911fbe564904720b3d4073057e0b6fa38f03e55fa5949ccd195c",
+    "/usr/share/omarchy/shell/Ui/PanelSlider.qml": "aa8fcf167324ff9eb60a219f037004482adbe2a30369af123d53956a81a93068",
+    "/usr/share/omarchy/shell/Ui/PanelToolTip.qml": "5520685c2d160002cb4bd62c9e5da193003c071fca69b90e6012ebf0c8ee4ca3",
+    "/usr/share/omarchy/shell/Ui/PluginBarApi.qml": "91964a42b92c58476a4f961df35148d4c94071344ef1a69eab1563d1496705a7",
+    "/usr/share/omarchy/shell/Ui/PointerMoveGate.qml": "6f494aadb3b7963c35167cf1b07505c237f27ef07e4fd386f7d041ec302af51a",
+    "/usr/share/omarchy/shell/Ui/PopupCard.qml": "b3751c78dba9d3b6383c072c915c3d1ecf5e2227cc8417127323077df1f0af5a",
+    "/usr/share/omarchy/shell/Ui/ScreenMoveRemap.qml": "ae09782672877502015e517c6f58565cf79b82e0aa1dc56ee5655989863ad8a7",
+    "/usr/share/omarchy/shell/Ui/SearchableDropdown.qml": "a30cff5297ba595235ead18c956b1268d140b3962375b5ed14d98f6ed0eecc10",
+    "/usr/share/omarchy/shell/Ui/SpeedTestOverlay.qml": "f7b37ccf6e641c3a607d91b824f7df15aac6177e5004462718842c686325af48",
+    "/usr/share/omarchy/shell/Ui/TextField.qml": "b3ad72f56f86c2df164e347d64205c099f77c5fb90933fabea3b0f2a9e2b3778",
+    "/usr/share/omarchy/shell/Ui/Toggle.qml": "158aaa84cf1fff771b932bb1c79e00be19bee1bfeef2d27bfbd8aa4f1c416e6b",
+    "/usr/share/omarchy/shell/Ui/ToggleSwitch.qml": "6bfae25396c1d03979efd9a27130e03f11edc2c7062d1f0c0c252b30e60a9898",
+    "/usr/share/omarchy/shell/Ui/WidgetButton.qml": "a3cc74adca517b73a176eae0f93e976c24a3ec73b4b5855340b61b1ed2dcd08f",
+    "/usr/share/omarchy/shell/Ui/qmldir": "1c8f878acd5eafa6e3932325f76a205b1c0fc800f210ca071eee2409fee5d22b"
+  },
+  "fixtureTransform": "tests/profiles-ui.py copies installed Commons/Ui and removes only unsupported Quickshell theme I/O tails; inert model operations",
+  "captureCommand": "python3 -B tests/profiles-ui.py --capture-states ../release-states",
+  "captureExit": 0,
+  "captureTests": "78 passed, 0 failed",
+  "images": [
+    {
+      "path": "assets/screenshots/current/light-buttons.png",
+      "sha256": "5ef20e302c763c248899a6da8ebc46977f70edb78c4c8654c3969e913ae1263e",
+      "state": "light-buttons",
+      "origin": "actual QML consumer; inert model; offscreen software Qt",
+      "pixelDimensions": [
+        736,
+        650
+      ],
+      "logicalDimensions": [
+        736,
+        650
+      ],
+      "inspected": true,
+      "locale": "en",
+      "palette": "controlled light",
+      "fontBaseSize": 12
+    },
+    {
+      "path": "assets/screenshots/current/light-pointer.png",
+      "sha256": "4c211455920b9c9027662fa6ea3153270cc662816c03781430d480632bdf8a43",
+      "state": "light-pointer",
+      "origin": "actual QML consumer; inert model; offscreen software Qt",
+      "pixelDimensions": [
+        736,
+        650
+      ],
+      "logicalDimensions": [
+        736,
+        650
+      ],
+      "inspected": true,
+      "locale": "en",
+      "palette": "controlled light",
+      "fontBaseSize": 12
+    },
+    {
+      "path": "assets/screenshots/current/light-device.png",
+      "sha256": "6e9c33c97f3a260eabe3c1399408a75957172e44bd0cdd535af581b192e2dc1c",
+      "state": "light-device",
+      "origin": "actual QML consumer; inert model; offscreen software Qt",
+      "pixelDimensions": [
+        736,
+        650
+      ],
+      "logicalDimensions": [
+        736,
+        650
+      ],
+      "inspected": true,
+      "locale": "en",
+      "palette": "controlled light",
+      "fontBaseSize": 12
+    },
+    {
+      "path": "assets/screenshots/current/light-editor.png",
+      "sha256": "81f6303c108e8c1ac673dd7b66849c0e264fbdd6d0c7c5882ff38ab900ce545a",
+      "state": "light-editor",
+      "origin": "actual QML consumer; inert model; offscreen software Qt",
+      "pixelDimensions": [
+        736,
+        650
+      ],
+      "logicalDimensions": [
+        736,
+        650
+      ],
+      "inspected": true,
+      "locale": "en",
+      "palette": "controlled light",
+      "fontBaseSize": 12
+    },
+    {
+      "path": "assets/screenshots/current/dark-buttons.png",
+      "sha256": "103c5b91f44ba80390ba1b9ecf80edb937932ff7cf5911a3b26f1a760634546b",
+      "state": "buttons",
+      "origin": "actual QML consumer; inert model; offscreen software Qt",
+      "pixelDimensions": [
+        736,
+        650
+      ],
+      "logicalDimensions": [
+        736,
+        650
+      ],
+      "inspected": true,
+      "locale": "ru",
+      "palette": "controlled dark",
+      "fontBaseSize": 12
+    },
+    {
+      "path": "assets/screenshots/current/dark-pointer.png",
+      "sha256": "68c15e3a9c66e14a92fd177e91cf22c474cf0373282aace9e8d1af9e6b23e921",
+      "state": "pointer",
+      "origin": "actual QML consumer; inert model; offscreen software Qt",
+      "pixelDimensions": [
+        736,
+        650
+      ],
+      "logicalDimensions": [
+        736,
+        650
+      ],
+      "inspected": true,
+      "locale": "ru",
+      "palette": "controlled dark",
+      "fontBaseSize": 12
+    },
+    {
+      "path": "assets/screenshots/current/dark-device.png",
+      "sha256": "30e435d1e2d4f70d11d0535bc9b488c044a4f6af98e42f8d8ea69db2c0f58646",
+      "state": "device",
+      "origin": "actual QML consumer; inert model; offscreen software Qt",
+      "pixelDimensions": [
+        736,
+        650
+      ],
+      "logicalDimensions": [
+        736,
+        650
+      ],
+      "inspected": true,
+      "locale": "ru",
+      "palette": "controlled dark",
+      "fontBaseSize": 12
+    },
+    {
+      "path": "assets/screenshots/current/dark-editor.png",
+      "sha256": "0e3a5c9ccbb0526f65ef8e27704521a3dc4ea98f8b1277b78997a04d8b1c9b0f",
+      "state": "assignment-workspaces",
+      "origin": "actual QML consumer; inert model; offscreen software Qt",
+      "pixelDimensions": [
+        736,
+        650
+      ],
+      "logicalDimensions": [
+        736,
+        650
+      ],
+      "inspected": true,
+      "locale": "ru",
+      "palette": "controlled dark",
+      "fontBaseSize": 12
+    },
+    {
+      "path": "assets/screenshots/current/dark-profile-create.png",
+      "sha256": "a8a06b0d75dc44cf9a7b4fe9cee701d0d01ed3dd12f7287888f3e95b7e49e5a1",
+      "state": "profile-create",
+      "origin": "actual QML consumer; inert model; offscreen software Qt",
+      "pixelDimensions": [
+        736,
+        650
+      ],
+      "logicalDimensions": [
+        736,
+        650
+      ],
+      "inspected": true,
+      "locale": "ru",
+      "palette": "controlled dark",
+      "fontBaseSize": 12
+    },
+    {
+      "path": "assets/screenshots/current/dark-assignment-error.png",
+      "sha256": "563dee76f70b538fa90f84c021316719dea12b38775839244422f486cd4cc0fc",
+      "state": "assignment-error",
+      "origin": "actual QML consumer; inert model; offscreen software Qt",
+      "pixelDimensions": [
+        736,
+        650
+      ],
+      "logicalDimensions": [
+        736,
+        650
+      ],
+      "inspected": true,
+      "locale": "ru",
+      "palette": "controlled dark",
+      "fontBaseSize": 12
+    }
+  ],
+  "limits": [
+    "No live theme I/O/compositor capture",
+    "No physical Bluetooth/input proof",
+    "No screen reader or human translator acceptance"
+  ]
+}

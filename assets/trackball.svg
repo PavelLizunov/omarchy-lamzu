@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>
+<mask id="microCut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+<rect width="64" height="64" fill="white"/>
+<circle cx="14" cy="27.5" r="14.2" fill="black"/>
+<path transform="translate(0 3.2) scale(1 0.9)" d="M35 1 L39 18" fill="none" stroke="black" stroke-width="4" stroke-linecap="round"/>
+</mask>
+</defs>
+<g mask="url(#microCut)">
+<path fill="white" transform="translate(0 3.2) scale(1 0.9)" d="M26 3 C35 -1 45 5 50 13 C56 21 60 31 60 41 C60 51 53 58 43 61 C33 64 25 60 23 51 C22 45 19 42 15 39 C11 36 9 32 10 26 C10 21 14 18 18 14 C21 11 19 6 26 3 Z"/>
+</g>
+<circle cx="14" cy="27.5" r="10.5" fill="white"/></svg>
