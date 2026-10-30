@@ -1,7 +1,7 @@
 .pragma library
 
 // Plain profile data shared by the QML model and isolated contract checks.
-var keys = ["back", "forward", "middle", "tiltLeft", "tiltRight"];
+var keys = ["back", "forward", "middle"];
 var maxProfiles = 32;
 
 function copy(value) { return JSON.parse(JSON.stringify(value)); }

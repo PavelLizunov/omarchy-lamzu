@@ -6,8 +6,8 @@ import qs.Ui
 
 Panel {
   id: root
-  moduleName: "io.github.pavellizunov.mx-ergo"
-  ipcTarget: "io.github.pavellizunov.mx-ergo"
+  moduleName: "slovn.lamzu"
+  ipcTarget: "slovn.lamzu"
   manageIpc: false
   onOpenedChanged: if (opened) panelCard.showPage("buttons")
 
@@ -40,15 +40,10 @@ Panel {
     function hide(): void { root.close() }
     function toggle(): void { root.toggle() }
     function connectionStatus(): string {
-      return JSON.stringify({target: ergoModel.targetAddress,
-        address: ergoModel.btDevice ? ergoModel.btDevice.address : "",
-        connected: ergoModel.connected, transport: ergoModel.transport,
-        canRecover: ergoModel.canRecover, canStartRecovery: ergoModel.canStartRecovery,
-        busy: ergoModel.recoveryBusy, stage: ergoModel.recoveryStage,
-        result: ergoModel.recoveryResult, panelOpen: root.opened,
-        page: panelCard.panelPage, recoveryVisible: panelCard.recoveryVisible})
+      return JSON.stringify({connected: ergoModel.connected, transport: ergoModel.transport,
+        battery: ergoModel.batteryPercent, dpi: ergoModel.dpi, error: ergoModel.telemetryError,
+        panelOpen: root.opened, page: panelCard.panelPage})
     }
-    function recoverConnection(): bool { return ergoModel.recoverDevice() }
     function nextProfile(): void { ergoModel.nextProfile() }
     function nextProfileFromWheel(): void { ergoModel.nextProfileFromWheel() }
     function profileStatus(): string {
@@ -63,13 +58,12 @@ Panel {
     }
   }
 
-  readonly property bool hideWhenDisconnected: root.currentSetting("hideWhenDisconnected", true)
+  readonly property bool hideWhenDisconnected: root.currentSetting("hideWhenDisconnected", false)
   readonly property bool vertical: root.bar ? root.bar.vertical : false
 
   ErgoModel {
     id: ergoModel
-    targetAddress: root.currentSetting("deviceAddress", "")
-    hyprDeviceName: root.currentSetting("hyprDeviceName", "logitech-mx-ergo-multi-device-trackball-")
+    hyprDeviceName: root.currentSetting("hyprDeviceName", "compx-lamzu-thorn-1")
     sensitivity: root.currentSetting("sensitivity", 0.0)
     accelProfile: root.currentSetting("accelProfile", "adaptive")
     naturalScroll: root.currentSetting("naturalScroll", false)
@@ -86,7 +80,7 @@ Panel {
     }
   }
 
-  visible: ergoModel.connected || !root.hideWhenDisconnected
+  visible: ergoModel.connected || ergoModel.connectionUnknown || !root.hideWhenDisconnected
   implicitWidth: visible ? button.implicitWidth : 0
   implicitHeight: visible ? button.implicitHeight : 0
 
@@ -100,65 +94,34 @@ Panel {
     fixedHeight: root.vertical ? Style.bar.iconSlot : -1
     horizontalMargin: 0
     verticalPadding: 0
-    tooltipText: "Logitech MX Ergo: " + ergoModel.connectionStatusText
+    tooltipText: "LAMZU THORN: " + ergoModel.connectionStatusText
       + (ergoModel.connected ? " · " + ergoModel.batteryLevelText : "")
       + " · " + ergoModel.activeProfileName
     onPressed: function(b) {
       root.toggle()
     }
 
-    Row {
-      id: barContent
+    Item {
+      id: mouseIcon
       anchors.centerIn: parent
-      spacing: Style.space(3)
-
-      Item {
-        id: trackballIcon
-        readonly property color foreground: button.active && button.useActiveColor ? button.activeColor : button.foreground
-        width: Style.bar.iconCanvas
-        height: width
-        anchors.verticalCenter: parent.verticalCenter
-
-        Image {
-          id: trackballSource
-          anchors.fill: parent
-          source: Qt.resolvedUrl("assets/trackball.svg")
-          sourceSize.width: Math.ceil(width * 4)
-          sourceSize.height: Math.ceil(height * 4)
-          fillMode: Image.PreserveAspectFit
-          smooth: true
-          mipmap: true
-          visible: false
-        }
-
-        MultiEffect {
-          anchors.fill: parent
-          source: trackballSource
-          colorization: 1
-          colorizationColor: trackballIcon.foreground
-        }
-
-        Rectangle {
-          anchors.centerIn: parent
-          visible: !ergoModel.connected
-          width: parent.width
-          height: Style.space(1.5)
-          radius: height / 2
-          rotation: -45
-          antialiasing: true
-          color: trackballIcon.foreground
-        }
+      width: Style.bar.iconCanvas
+      height: width
+      Image {
+        id: iconSource
+        anchors.fill: parent
+        source: Qt.resolvedUrl("assets/mouse.svg")
+        sourceSize.width: Math.ceil(width * 4)
+        sourceSize.height: Math.ceil(height * 4)
+        fillMode: Image.PreserveAspectFit
+        smooth: true
+        mipmap: true
+        visible: false
       }
-
-      // Charging micro-bolt
-      Text {
-        visible: ergoModel.connected && ergoModel.isCharging
-        textFormat: Text.PlainText
-        text: "󰂄"
-        color: button.active && button.useActiveColor ? button.activeColor : button.foreground
-        font.family: Style.font.family
-        font.pixelSize: Style.font.caption
-        anchors.verticalCenter: parent.verticalCenter
+      MultiEffect {
+        anchors.fill: parent
+        source: iconSource
+        colorization: 1
+        colorizationColor: button.active && button.useActiveColor ? button.activeColor : button.foreground
       }
     }
   }

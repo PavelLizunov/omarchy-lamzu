@@ -11,7 +11,7 @@ import sys
 import tempfile
 
 MAX_BYTES = 65536
-BUTTONS = {'back', 'forward', 'middle', 'tiltLeft', 'tiltRight'}
+BUTTONS = {'back', 'forward', 'middle'}
 ACTIONS = {'default', 'workspace_next', 'workspace_prev', 'window_close', 'window_float',
            'window_fullscreen', 'window_next', 'overview', 'screenshot', 'media_play_pause',
            'media_next', 'media_prev', 'mute', 'tab_next', 'tab_prev', 'browser_back',
@@ -108,7 +108,7 @@ def write(path, raw):
     # Never follow a final symlink or replace a special file.
     if path.is_symlink() or (path.exists() and not path.is_file()):
         raise ValueError('Preferences must be a regular file')
-    fd, name = tempfile.mkstemp(prefix='.mx-ergo-', dir=path.parent)
+    fd, name = tempfile.mkstemp(prefix='.lamzu-', dir=path.parent)
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as stream:
             stream.write(rendered)
@@ -137,5 +137,5 @@ if __name__ == '__main__':
     try:
         main()
     except (OSError, ValueError) as error:
-        print('MX Ergo: ' + str(error), file=sys.stderr)
+        print('LAMZU THORN: ' + str(error), file=sys.stderr)
         sys.exit(1)

@@ -1,19 +1,19 @@
+#!/usr/bin/env python3
+"""Read LAMZU CompX report 8 (OpenMouse protocol), USB before 1K receiver."""
 import glob
 import json
 import os
 import select
-import sys
+import signal
 import time
-
-ACTIONS = {'Назад': (1, 8), 'Вперёд': (1, 16), 'Средняя кнопка': (1, 4), 'Смена DPI': (2, 1), 'DPI +': (2, 2), 'DPI −': (2, 3), 'Отключить': (0, 0)}
 
 
 def devices():
     result = []
     for path in glob.glob('/sys/class/hidraw/hidraw*/device'):
         try:
-            with open(path + '/uevent') as f:
-                identity = f.read()
+            with open(path + '/uevent') as stream:
+                identity = stream.read(4096)
             if ':1.1/' not in os.path.realpath(path):
                 continue
             for product in ('F50F', 'F50D'):
@@ -24,79 +24,68 @@ def devices():
     return sorted(result, reverse=True)
 
 
-def exchange(fd, command, address=0, payload=b''):
+def exchange(fd, command, address=0, length=0):
     packet = bytearray(17)
     packet[0:2] = bytes((8, command))
-    packet[3:6] = bytes((address >> 8, address & 255, len(payload)))
-    packet[6:6 + len(payload)] = payload
+    packet[3:6] = bytes((address >> 8, address & 255, length))
     packet[-1] = (0x55 - sum(packet[:-1])) & 255
     os.write(fd, packet)
-    end = time.monotonic() + 1
+    end = time.monotonic() + 0.8
     while time.monotonic() < end:
         if not select.select([fd], [], [], max(0, end - time.monotonic()))[0]:
             break
         reply = os.read(fd, 64)
-        if len(reply) >= 17 and reply[0] == 8 and reply[1] == command and sum(reply[:17]) % 256 == 0x55:
-            if reply[2] != 0:
-                raise OSError('device rejected command')
-            if command in (7, 8) and reply[3:5] != packet[3:5]:
-                continue
-            return reply[6:16]
-    raise OSError('mouse did not respond')
+        if len(reply) != 17 or reply[0] != 8 or reply[1] != command or sum(reply) % 256 != 0x55:
+            continue
+        if command == 8 and reply[3:5] != packet[3:5]:
+            continue
+        if reply[2] != 0:
+            raise OSError('Device rejected status request')
+        return reply[6:16]
+    raise OSError('Mouse asleep, disconnected or not responding')
 
 
-def read(fd, address, length):
-    return exchange(fd, 8, address, bytes(length))[:length]
-
-
-def sealed(data):
+def field(fd, address, length):
+    data = exchange(fd, 8, address, length)[:length]
     if sum(data) % 256 != 0x55:
-        raise OSError('invalid checksum')
+        raise OSError('Invalid DPI checksum')
     return data
 
 
-def run(fd, product):
+def read_status(fd, product):
     if product == 'F50D' and exchange(fd, 3)[0] != 1:
-        raise OSError('mouse offline')
-    if len(sys.argv) == 3:
-        button, action = sys.argv[1:]
-        if button not in ('back', 'forward') or action not in ACTIONS:
-            raise ValueError('invalid assignment')
-        cls, value = ACTIONS[action]
-        data = bytes((cls, value, 0, (0x55 - cls - value) & 255))
-        address = 108 if button == 'back' else 112
-        exchange(fd, 7, address, data)
-        if read(fd, address, 4) != data:
-            raise OSError('assignment not confirmed')
+        raise OSError('Wireless mouse offline')
     battery = exchange(fd, 4)
-    index = sealed(read(fd, 4, 2))[0]
-    if index > 7:
-        raise OSError('invalid DPI stage')
-    dpi = sealed(read(fd, 12 + 4 * index, 4))
-    x = (((dpi[2] >> 2) & 3) * 256 + dpi[0] + 1) * 50
-    buttons = {}
-    for name, address in (('back', 108), ('forward', 112)):
-        data = sealed(read(fd, address, 4))
-        buttons[name] = next((label for label, pair in ACTIONS.items() if pair == (data[0], data[1]) and data[2] == 0), 'Другое')
-    return {'battery': battery[0] if battery[0] <= 100 else None, 'charging': battery[1] == 1, 'dpi': x, 'transport': 'USB' if product == 'F50F' else 'Радиоприёмник', 'buttons': buttons}
-
-
-errors = []
-for product, path in devices():
+    result = {'connected': True, 'battery': battery[0] if battery[0] <= 100 else None,
+              'charging': battery[1] == 1, 'transport': 'usb' if product == 'F50F' else 'wireless',
+              'product': product.lower(), 'dpi': 0}
     try:
-        fd = os.open(path, os.O_RDWR | os.O_NONBLOCK)
+        index = field(fd, 4, 2)[0]
+        if index > 7:
+            raise OSError('Invalid DPI stage')
+        dpi = field(fd, 12 + 4 * index, 4)
+        result['dpi'] = (((dpi[2] >> 2) & 3) * 256 + dpi[0] + 1) * 50
+    except OSError as error:
+        result['error'] = str(error)
+    return result
+
+
+def main():
+    errors = []
+    available = devices()
+    for product, path in available:
         try:
-            print(json.dumps(run(fd, product), ensure_ascii=False))
-            break
-        finally:
-            os.close(fd)
-    except (OSError, ValueError) as error:
-        errors.append(str(error))
-        if len(sys.argv) > 1:
-            break
-else:
-    pass
-if errors and (len(sys.argv) > 1 or len(errors) == len(devices())):
-    print(json.dumps({'error': '; '.join(errors)}, ensure_ascii=False))
-elif not devices():
-    print(json.dumps({'error': 'Мышь не найдена'}, ensure_ascii=False))
+            fd = os.open(path, os.O_RDWR | os.O_NONBLOCK)
+            try:
+                return read_status(fd, product)
+            finally:
+                os.close(fd)
+        except OSError as error:
+            errors.append(str(error))
+    return {'connected': None if available else False, 'present': bool(available),
+            'error': '; '.join(errors) if errors else 'LAMZU not connected'}
+
+
+if __name__ == '__main__':
+    signal.alarm(8)
+    print(json.dumps(main()))

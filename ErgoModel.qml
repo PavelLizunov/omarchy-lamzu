@@ -1,21 +1,16 @@
 import QtQuick
-import QtQml.Models
 import Quickshell
 import Quickshell.Io
-import Quickshell.Bluetooth
 import Quickshell.Hyprland
-import Quickshell.Services.UPower
 import "I18n.js" as I18n
-import "Battery.js" as Battery
 import "ButtonProfiles.js" as Profiles
 
-// Single state owner for Logitech MX Ergo trackball.
-// Reactive BlueZ/UPower telemetry and Hyprland pointer/button controls.
+// Single state owner for LAMZU THORN mouse.
+// Bounded CompX telemetry and device-scoped Hyprland pointer/button controls.
 QtObject {
   id: root
 
-  property string targetAddress: ""
-  property string hyprDeviceName: "logitech-mx-ergo-multi-device-trackball-"
+  property string hyprDeviceName: "compx-lamzu-thorn-1"
   property string language: "system"
   readonly property string effectiveLanguage: I18n.resolveLanguage(language, Qt.locale().name)
 
@@ -28,7 +23,7 @@ QtObject {
   }
 
   readonly property string configHome: Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")
-  readonly property string configPath: configHome + "/omarchy/mx-ergo.json"
+  readonly property string configPath: configHome + "/omarchy/lamzu.json"
   readonly property string configHelper: decodeURIComponent(Qt.resolvedUrl("scripts/config-store.py").toString().replace(/^file:\/\//, ""))
 
   // User adjustable pointer settings
@@ -52,67 +47,14 @@ QtObject {
     target: Hyprland
     function onRawEvent(event) {
       if (event && event.name === "configreloaded" && root.configReadComplete && root.settingsConfigured) {
-        console.info("MX Ergo: restoring settings after Hyprland reload")
+        console.info("LAMZU THORN: restoring settings after Hyprland reload")
         root.applyAllSettings()
       }
     }
   }
 
-  // Refresh optional controller diagnostics when the panel opens
   property bool panelOpen: false
-  onPanelOpenChanged: {
-    if (root.panelOpen) {
-      root.checkLowLatency()
-    }
-  }
-
-  property string lowLatencyState: "unknown"
-  property bool lowLatencyHelperAvailable: false
-  property bool lowLatencyCanRestore: false
-  property bool lowLatencyLegacy: false
-  property bool lowLatencyConfigured: false
-  property bool lowLatencyFailed: false
-  readonly property bool lowLatencyEnabled: lowLatencyState === "applied"
-  readonly property bool lowLatencyBusy: lowLatencyApply.running
-  readonly property string bluetoothAdapter: btDevice && btDevice.adapter
-    ? String(btDevice.adapter.adapterId).split("/").pop() : ""
-  readonly property string lowLatencyScript: decodeURIComponent(Qt.resolvedUrl("scripts/low-latency.sh").toString().replace(/^file:\/\//, ""))
-  onBluetoothAdapterChanged: root.checkLowLatency()
-
-  // Auto-reconnect on system wake / recovery
-  property bool autoReconnect: true
-  property bool startupRecoveryAttempted: false
-  property var startupRecoveryDevice: null
-  property var wakeRetryDevice: null
-  property bool isConnecting: false
-  property string recoveryStage: ""
-  property string recoveryResult: ""
-  property var recoveryDevice: null
-  property var recoveryAdapter: null
-  property string recoveryTargetAddress: ""
-  property bool recoveryScanStarted: false
-  property bool recoverySeenTarget: false
-  property string recoveryOtherAddress: ""
-  property bool recoveryOtherMultiple: false
-  property var recoveryOtherPaired: null
-  property var recoveryOtherBonded: null
-  property bool recoveryStopping: false
-  property bool recoveryCleanupEscalated: false
-  property string recoveryAbortResult: ""
-  property double recoveryStartedAt: 0
-  readonly property bool recoveryBusy: recoveryStage !== "" || recoveryStopping
-  readonly property string recoveryScanNote: recoveryResult !== "" && recoveryScanStarted
-    ? root.t(recoverySeenTarget ? "recovery_target_seen" : "recovery_target_not_seen") : ""
-  readonly property string recoveryOtherNote: {
-    if (recoveryResult === "" || recoveryOtherAddress === "") return ""
-    if (recoveryOtherMultiple) return root.t("recovery_other_multiple")
-    function flag(value) {
-      return root.t(value === null ? "battery_unknown" : (value ? "state_yes" : "state_no"))
-    }
-    return root.t("recovery_other_seen") + " " + recoveryOtherAddress + " ("
-      + "Paired=" + flag(recoveryOtherPaired) + ", "
-      + "Bonded=" + flag(recoveryOtherBonded) + ")"
-  }
+  onPanelOpenChanged: if (panelOpen) refreshTelemetry()
 
   // User configurable button actions
   property string buttonBack: "default"
@@ -316,656 +258,55 @@ QtObject {
     }
   }
 
-  // Reactive devices from native C++ services
-  readonly property var btAdaptersList: Bluetooth.adapters ? Bluetooth.adapters.values : []
-  readonly property var btDevicesList: Bluetooth.devices ? Bluetooth.devices.values : []
-  readonly property var upDevicesList: UPower.devices ? UPower.devices.values : []
-  property string observedBtAddress: ""
+  property var telemetry: ({})
+  property string telemetryError: ""
+  readonly property string deviceName: "LAMZU THORN"
+  readonly property bool connected: telemetry.connected === true
+  readonly property bool connectionUnknown: telemetry.connected === null || telemetry.connected === undefined
+  readonly property string transport: telemetry.transport || ""
+  readonly property var batteryPercent: telemetry.battery === undefined ? null : telemetry.battery
+  readonly property int dpi: telemetry.dpi || 0
+  readonly property bool isCharging: telemetry.charging === true
+  readonly property string macAddress: telemetry.product ? "3554:" + telemetry.product : ""
+  readonly property string transportText: connected ? root.t(transport === "usb" ? "transport_usb" : "transport_wireless") : root.t("disconnected")
+  readonly property string connectionStatusText: connectionUnknown ? root.t("status_waiting") : transportText
+  readonly property string batteryLevelText: batteryPercent === null ? root.t("battery_unknown") : String(batteryPercent) + "%"
+  readonly property string batteryReportText: ""
+  readonly property string batterySourceDifference: ""
+  readonly property string batteryIcon: isCharging ? "󰂄" : "󰁹"
+  readonly property string telemetryHelper: decodeURIComponent(Qt.resolvedUrl("scripts/telemetry.py").toString().replace(/^file:\/\//, ""))
 
-  // Matched Bluetooth device
-  readonly property var btDevice: {
-    var list = btDevicesList
-    var target = root.targetAddress.toUpperCase().replace(/:/g, "")
-    var matches = []
-    for (let i = 0; i < list.length; i++) {
-      let d = list[i]
-      if (!d) continue
-      let addr = String(d.address || "").toUpperCase().replace(/:/g, "")
-      let name = String(d.name || d.deviceName || "")
-      if ((target !== "" && addr === target) || (target === "" && name.indexOf("MX Ergo") !== -1)) {
-        matches.push(d)
-      }
-    }
-    if (matches.length === 1) return matches[0]
-    if (target !== "") return null
-    var connected = matches.filter(function(device) {
-      return device.connected && device.paired && device.bonded
-    })
-    if (connected.length === 1) return connected[0]
-    var bonded = matches.filter(function(device) { return device.paired && device.bonded })
-    if (bonded.length === 1) return bonded[0]
-    if (connected.length > 1 || root.observedBtAddress === "") return null
-    var previous = matches.filter(function(device) {
-      return String(device.address || "").toUpperCase() === root.observedBtAddress
-    })
-    return previous.length === 1 ? previous[0] : null
+  function refreshTelemetry() {
+    if (!root.sleeping && !root.shuttingDown && !telemetryProcess.running) telemetryProcess.running = true
   }
-
-  property var powerCandidates: []
-  property Instantiator powerDevices: Instantiator {
-    model: root.upDevicesList
-    delegate: PowerDevice {
-      required property var modelData
-      device: modelData
-    }
-    onObjectAdded: function(index, object) {
-      root.powerCandidates = root.powerCandidates.concat([object])
-    }
-    onObjectRemoved: function(index, object) {
-      root.powerCandidates = root.powerCandidates.filter(function(item) { return item !== object })
-    }
-  }
-
-  // Reject ambiguous/foreign devices instead of selecting the first Logitech battery.
-  readonly property var matchedPower: {
-    var target = root.btDevice ? root.btDevice.address : root.targetAddress
-    var available = root.powerCandidates.filter(function(item) {
-      return item.device && item.device.ready && item.device.isPresent && item.identity
-        && (item.identity.transport !== "ble" || root.bleLinked)
-    })
-    var matches = available.filter(function(item) { return Battery.matches(item.identity, target) })
-    if (matches.length === 1) return matches[0]
-    if (matches.length > 1 || root.bleLinked) return null
-    // Bluetooth MAC and receiver serial differ. With no active BLE link, a
-    // single receiver-side MX Ergo can be selected by its verified product ID.
-    var receivers = available.filter(function(item) { return item.identity.transport === "unifying" })
-    return receivers.length === 1 ? receivers[0] : null
-  }
-  readonly property var upDevice: matchedPower ? matchedPower.device : null
-  // Connection status reports the BlueZ link. Pairing validity is shown
-  // separately and remains a prerequisite for recovery of a saved bond.
-  readonly property bool bleLinked: !!btDevice && !!btDevice.connected
-
-  readonly property string transport: {
-    if (bleLinked) return "ble"
-    // A cached BLE battery is not evidence of a receiver connection.
-    if (matchedPower && matchedPower.identity.transport === "unifying") return "unifying"
-    return ""
-  }
-
-  readonly property bool connected: transport !== ""
-  readonly property bool deviceFound: btDevice !== null || matchedPower !== null
-  readonly property string connectionStatusText: {
-    if (root.targetAddress !== "" && !root.btDevice) return root.t("status_record_missing")
-    if (root.btDevice && root.btDevice.connected && (!root.btDevice.paired || !root.btDevice.bonded))
-      return root.t("status_pairing_incomplete")
-    if (root.transport === "unifying") return root.transportText
-    if (root.bleLinked) return root.t("status_link_reported")
-    if (root.btDevice && root.btDevice.paired && root.btDevice.bonded)
-      return root.t("status_bonded_disconnected")
-    if (root.btDevice) return root.t("status_pairing_required")
-    return root.t("status_selection_unavailable")
-  }
-  function logConnectionState() {
-    var device = root.btDevice
-    console.info("MX Ergo: selected=" + (device ? String(device.address) : "none")
-      + " target=" + (root.targetAddress || "auto")
-      + " BlueZ connected=" + (device ? device.connected : "unknown")
-      + " paired=" + (device ? device.paired : "unknown")
-      + " bonded=" + (device ? device.bonded : "unknown")
-      + " transport=" + (root.transport || "none")
-      + " battery=" + (root.batteryTier || "unknown"))
-  }
-  onConnectionStatusTextChanged: Qt.callLater(root.logConnectionState)
-  onBatteryTierChanged: Qt.callLater(root.logConnectionState)
-  readonly property var isCharging: !connected || !upDevice || upDevice.state === UPowerDeviceState.Unknown
-    ? null : upDevice.state === UPowerDeviceState.Charging
-
-  onConnectedChanged: {
-    if (root.connected) {
-      root.startupRecoveryAttempted = true
-      startupRecoveryTimer.stop()
-      root.startupRecoveryDevice = null
-      root.isConnecting = false
-      connectingResetTimer.stop()
-      wakeReconnectTimer.stop()
-      wakeStage2Timer.stop()
-      wakeRetryDeadline.stop()
-      root.wakeRetryDevice = null
-    }
-  }
-
-  readonly property bool canReconnect: !!root.btDevice
-    && /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(root.btDevice.address)
-    && !!root.btDevice.paired && !!root.btDevice.bonded
-    && !!root.btDevice.adapter && root.btDevice.adapter.enabled
-  readonly property bool canRecover: root.canReconnect
-    // bluetoothctl selects its own default adapter; only one adapter is safe.
-    && root.btAdaptersList.length === 1 && root.btDevice.adapter === root.btAdaptersList[0]
-  readonly property bool canStartRecovery: root.canRecover
-    && root.btDevice.state !== BluetoothDeviceState.Connecting
-    && root.btDevice.state !== BluetoothDeviceState.Disconnecting
-  onCanStartRecoveryChanged: root.scheduleStartupRecovery()
-  onConfigReadCompleteChanged: root.scheduleStartupRecovery()
-  onAutoReconnectChanged: root.scheduleStartupRecovery()
-
-  function scheduleStartupRecovery() {
-    if (root.startupRecoveryAttempted || !root.configReadComplete || !root.autoReconnect
-        || root.connected || root.sleeping || root.shuttingDown || !root.canStartRecovery) {
-      startupRecoveryTimer.stop()
-      return
-    }
-    if (!startupRecoveryTimer.running) {
-      root.startupRecoveryDevice = root.btDevice
-      startupRecoveryTimer.restart()
-    }
-  }
-
-  function startStartupRecovery() {
-    if (root.startupRecoveryAttempted || root.btDevice !== root.startupRecoveryDevice
-        || !root.configReadComplete || !root.autoReconnect
-        || root.connected || root.recoveryBusy || root.isConnecting || root.sleeping
-        || root.shuttingDown || !root.canStartRecovery) return
-    root.recoverDevice(false)
-  }
-
-  function reconnectDevice() {
-    if (root.connected || root.isConnecting || root.recoveryBusy || root.sleeping || !root.canReconnect
-        || root.btDevice.state === BluetoothDeviceState.Connecting) return false
-
-    var target = root.btDevice.address
-    // Strict operand validation: must match valid 6-octet MAC address pattern
-    if (!/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(target)) return false
-
-    root.isConnecting = true
-    connectingResetTimer.restart()
-
-    root.btDevice.connect()
-    return true
-  }
-
-  function recoverySelectionValid() {
-    return !!root.recoveryDevice && root.btDevice === root.recoveryDevice
-      && !!root.recoveryAdapter && root.recoveryDevice.adapter === root.recoveryAdapter
-      && root.canRecover && String(root.recoveryDevice.address).toUpperCase() === root.recoveryTargetAddress
-  }
-
-  // Explicit, target-only recovery. BlueZ's link report and a fresh discovery
-  // report are recorded separately; neither proves that pointer input works.
-  function recoverDevice(allowDisconnect) {
-    if (!root.canStartRecovery || root.recoveryBusy || recoveryScanProcess.running || recoveryCancelProcess.running
-        || root.isConnecting || root.sleeping || root.shuttingDown
-        || (allowDisconnect === false && (root.btDevice.connected || root.connected))) return false
-    root.startupRecoveryAttempted = true
-    startupRecoveryTimer.stop()
-    root.startupRecoveryDevice = null
-    root.recoveryDevice = root.btDevice
-    root.recoveryAdapter = root.btDevice.adapter
-    root.recoveryTargetAddress = String(root.btDevice.address).toUpperCase()
-    root.recoveryStartedAt = Date.now()
-    console.info("MX Ergo recovery: start address=" + root.recoveryTargetAddress
-      + " source=" + (allowDisconnect === false ? "startup" : "manual")
-      + " BlueZ connected=" + root.recoveryDevice.connected)
-    if (root.targetAddress === "") root.observedBtAddress = root.recoveryTargetAddress
-    root.recoveryResult = ""
-    root.recoveryScanStarted = false
-    root.recoverySeenTarget = false
-    root.recoveryOtherAddress = ""
-    root.recoveryOtherMultiple = false
-    root.recoveryOtherPaired = null
-    root.recoveryOtherBonded = null
-    root.recoveryAbortResult = ""
-    wakeReconnectTimer.stop()
-    wakeStage2Timer.stop()
-    wakeRetryDeadline.stop()
-    root.wakeRetryDevice = null
-    if (root.recoveryDevice.connected) {
-      if (allowDisconnect === false) {
-        root.finishRecovery("recovery_link_reported")
-        return true
-      }
-      root.recoveryStage = "disconnecting"
-      recoveryStepTimer.interval = 5000
-      recoveryStepTimer.restart()
-      root.recoveryDevice.disconnect()
-    } else {
-      root.startRecoveryScan()
-    }
-    return true
-  }
-
-  function cancelRecovery() {
-    if (root.recoveryStage === "connecting" && root.recoveryDevice)
-      root.abortRecoveryConnect("recovery_cancelled")
-    else if (root.recoveryStage !== "" && root.recoveryStage !== "cancellingConnect")
-      root.finishRecovery("recovery_cancelled")
-  }
-
-  function abortRecoveryConnect(result) {
-    if (root.recoveryStage !== "connecting" || !root.recoveryDevice) return
-    root.recoveryAbortResult = result
-    console.info("MX Ergo recovery: cancelling pending Connect address="
-      + root.recoveryTargetAddress + " reason=" + result)
-    root.recoveryStage = "cancellingConnect"
-    root.recoveryStopping = true
-    recoveryStepTimer.interval = 15000
-    recoveryStepTimer.restart()
-    // BlueZ Device1.Disconnect cancels a pending Connect. Quickshell's
-    // disconnect() refuses this call while its Connected flag is false.
-    recoveryCancelProcess.command = ["/usr/bin/bluetoothctl", "--timeout", "10",
-      "disconnect", root.recoveryTargetAddress]
-    recoveryCancelProcess.running = true
-    if (recoveryScanProcess.running) recoveryScanProcess.running = false
-  }
-
-  function settleRecoveryAbort() {
-    if (root.recoveryStage !== "cancellingConnect" || recoveryCancelProcess.running) return
-    if (!root.recoveryDevice || root.btDevice !== root.recoveryDevice)
-      root.finishRecovery("recovery_cancel_unconfirmed")
-    else if (root.recoveryDevice.connected)
-      root.finishRecovery("recovery_cancel_unconfirmed")
-    else if (root.recoveryDevice.state !== BluetoothDeviceState.Connecting)
-      root.finishRecovery(root.recoveryAbortResult)
-  }
-
-  function startRecoveryScan() {
-    if (!root.recoverySelectionValid()) {
-      root.finishRecovery("recovery_unavailable")
-      return
-    }
-    root.recoveryStage = "startingScan"
-    console.info("MX Ergo recovery: starting owned LE scan address=" + root.recoveryTargetAddress)
-    recoveryStepTimer.interval = 5000
-    recoveryStepTimer.restart()
-    recoveryScanProcess.running = true
-  }
-
-  function beginRecoveryScanWindow() {
-    root.recoveryScanStarted = true
-    console.info("MX Ergo recovery: owned LE scan started address=" + root.recoveryTargetAddress)
-    root.recoveryStage = "scanning"
-    recoveryStepTimer.interval = 10000
-    recoveryStepTimer.restart()
-  }
-
-  function startRecoveryConnect() {
-    if (root.recoveryStage !== "scanning") return
-    if (!root.recoverySelectionValid()) {
-      root.finishRecovery("recovery_unavailable")
-      return
-    }
-    root.recoveryStage = "connecting"
-    console.info("MX Ergo recovery: Connect address=" + root.recoveryTargetAddress
-      + " freshReport=" + root.recoverySeenTarget)
-    recoveryStepTimer.interval = 35000
-    recoveryStepTimer.restart()
-    if (root.recoveryDevice.connected) root.finishRecovery("recovery_link_reported")
-    else root.recoveryDevice.connect()
-  }
-
-  function updateRecoveryOtherState() {
-    if (root.recoveryOtherAddress === "" || root.recoveryOtherMultiple) return
-    var list = root.btDevicesList
-    for (let i = 0; i < list.length; i++) {
-      let device = list[i]
-      if (device && String(device.address || "").toUpperCase() === root.recoveryOtherAddress) {
-        root.recoveryOtherPaired = !!device.paired
-        root.recoveryOtherBonded = !!device.bonded
-        return
-      }
-    }
-  }
-
-  function noteRecoveryOtherAddress(address) {
-    if (root.recoveryOtherAddress !== "" && root.recoveryOtherAddress !== address) {
-      root.recoveryOtherMultiple = true
-      return
-    }
-    root.recoveryOtherAddress = address
-    root.updateRecoveryOtherState()
-  }
-
-  function handleRecoveryScanLine(rawLine) {
-    if (root.recoveryStage === "") return
-    var line = String(rawLine).replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").trim()
-    if (root.recoveryStage === "startingScan") {
-      if (line.indexOf("Failed to start discovery") !== -1 || line.indexOf("SetDiscoveryFilter failed") !== -1) {
-        root.finishRecovery("recovery_scan_start_failed")
-        return
-      }
-      if (line.indexOf("Discovery started") !== -1) root.beginRecoveryScanWindow()
-    }
-    if (!root.recoveryScanStarted) return
-
-    // Initial cached Device objects are printed before our scan starts. Accept
-    // only newly discovered names or fresh advertisement-derived changes.
-    var match = line.match(/^\[(NEW|CHG)\] Device ((?:[0-9A-F]{2}:){5}[0-9A-F]{2})\s+(.+)$/i)
-    if (!match) return
-    var detail = match[3]
-    if (match[1].toUpperCase() === "CHG" && !/^(RSSI|TxPower|AdvertisingFlags|ManufacturerData|ServiceData):/i.test(detail)) return
-    if (match[1].toUpperCase() === "NEW" && !/MX Ergo/i.test(detail)) return
-    var address = match[2].toUpperCase()
-    if (address === root.recoveryTargetAddress) {
-      root.recoverySeenTarget = true
-      console.info("MX Ergo recovery: saved address seen in owned scan address=" + address)
-      root.startRecoveryConnect()
-      return
-    }
-    if (/MX Ergo/i.test(detail)) {
-      root.noteRecoveryOtherAddress(address)
-      return
-    }
-    var list = root.btDevicesList
-    for (let i = 0; i < list.length; i++) {
-      let device = list[i]
-      if (device && String(device.address || "").toUpperCase() === address
-          && /MX Ergo/i.test(String(device.name || device.deviceName || ""))) {
-        root.noteRecoveryOtherAddress(address)
-        return
-      }
-    }
-  }
-
-  function finishRecovery(result) {
-    if (root.recoveryStage === "connecting" && root.recoveryDevice
-        && root.recoveryDevice.state === BluetoothDeviceState.Connecting
-        && result !== "recovery_link_reported") {
-      root.abortRecoveryConnect(result)
-      return
-    }
-    recoveryStepTimer.stop()
-    recoveryCleanupTimer.stop()
-    console.info("MX Ergo recovery: result=" + result
-      + " address=" + root.recoveryTargetAddress
-      + " freshReport=" + root.recoverySeenTarget
-      + " elapsedMs=" + (Date.now() - root.recoveryStartedAt))
-    root.recoveryStopping = recoveryScanProcess.running || recoveryCancelProcess.running
-    root.recoveryStage = ""
-    root.recoveryResult = result
-    root.recoveryDevice = null
-    root.recoveryAdapter = null
-    root.recoveryTargetAddress = ""
-    root.recoveryAbortResult = ""
-    if (recoveryScanProcess.running) {
-      root.recoveryCleanupEscalated = false
-      recoveryScanProcess.running = false
-    }
-    if (recoveryCancelProcess.running) {
-      root.recoveryCleanupEscalated = false
-      recoveryCancelProcess.running = false
-    }
-    if (root.recoveryStopping) recoveryCleanupTimer.restart()
-  }
-
-  property Timer recoveryStepTimer: Timer {
-    repeat: false
-    onTriggered: {
-      if (root.recoveryStage === "disconnecting") {
-        root.finishRecovery("recovery_disconnect_timeout")
-      } else if (root.recoveryStage === "startingScan") {
-        root.finishRecovery("recovery_scan_start_failed")
-      } else if (root.recoveryStage === "scanning") {
-        root.startRecoveryConnect()
-      } else if (root.recoveryStage === "connecting") {
-        root.finishRecovery("recovery_connect_timeout")
-      } else if (root.recoveryStage === "cancellingConnect") {
-        root.finishRecovery("recovery_cancel_unconfirmed")
-      }
-    }
-  }
-
-  // bluetoothctl owns one BlueZ discovery session even if another client scans.
-  // SIGTERM closes only this child's session; never write adapter.discovering.
-  property Process recoveryScanProcess: Process {
-    command: ["/usr/bin/bluetoothctl", "--timeout", "65", "scan", "le"]
-    stdout: SplitParser { onRead: function(line) { root.handleRecoveryScanLine(line) } }
-    stderr: SplitParser { onRead: function(line) { root.handleRecoveryScanLine(line) } }
-    onExited: {
-      if (root.recoveryStage === "startingScan") root.finishRecovery("recovery_scan_start_failed")
-      else if (root.recoveryStage !== "" && root.recoveryStage !== "cancellingConnect")
-        root.finishRecovery("recovery_scan_ended")
-      if (!recoveryCancelProcess.running && root.recoveryStage !== "cancellingConnect") {
-        root.recoveryStopping = false
-        recoveryCleanupTimer.stop()
-      }
-    }
-  }
-
-  property Process recoveryCancelProcess: Process {
+  property Process telemetryProcess: Process {
+    command: ["/usr/bin/python3", "-I", root.telemetryHelper]
     onExited: function(exitCode) {
-      if (root.recoveryStage === "cancellingConnect") {
-        if (exitCode !== 0) root.finishRecovery("recovery_cancel_unconfirmed")
-        else root.settleRecoveryAbort()
-      } else if (!recoveryScanProcess.running) {
-        root.recoveryStopping = false
-        recoveryCleanupTimer.stop()
+      if (exitCode !== 0) {
+        root.telemetry = ({})
+        root.telemetryError = "LAMZU status request failed"
       }
-    }
-  }
-
-  property Timer recoveryCleanupTimer: Timer {
-    interval: 2000
-    repeat: false
-    onTriggered: {
-      if (!recoveryScanProcess.running && !recoveryCancelProcess.running) {
-        root.recoveryStopping = false
-      } else if (!root.recoveryCleanupEscalated) {
-        root.recoveryCleanupEscalated = true
-        if (recoveryScanProcess.running) recoveryScanProcess.signal(9)
-        if (recoveryCancelProcess.running) recoveryCancelProcess.signal(9)
-        restart()
-      } else {
-        root.recoveryResult = "recovery_cleanup_failed"
-      }
-    }
-  }
-
-  property Connections recoveryDeviceEvents: Connections {
-    target: root.recoveryDevice
-    function onStateChanged() {
-      if (root.recoveryStage === "cancellingConnect")
-        root.settleRecoveryAbort()
-      else if (root.recoveryStage === "disconnecting"
-          && root.recoveryDevice.state === BluetoothDeviceState.Connected)
-        root.finishRecovery("recovery_disconnect_failed")
-      else if (root.recoveryStage === "connecting"
-          && root.recoveryDevice.state === BluetoothDeviceState.Disconnected
-          && !root.recoveryDevice.connected)
-        root.finishRecovery("recovery_connect_failed")
-    }
-    function onConnectedChanged() {
-      if (root.recoveryStage === "cancellingConnect")
-        root.settleRecoveryAbort()
-      else if (root.recoveryStage === "disconnecting" && !root.recoveryDevice.connected)
-        root.startRecoveryScan()
-      else if (["startingScan", "scanning", "connecting"].indexOf(root.recoveryStage) >= 0
-          && root.recoveryDevice.connected && root.recoverySelectionValid())
-        root.finishRecovery("recovery_link_reported")
-    }
-    function onPairedChanged() {
-      if (root.recoveryStage !== "" && root.recoveryStage !== "cancellingConnect"
-          && !root.recoveryDevice.paired)
-        root.finishRecovery("recovery_unavailable")
-    }
-    function onBondedChanged() {
-      if (root.recoveryStage !== "" && root.recoveryStage !== "cancellingConnect"
-          && !root.recoveryDevice.bonded)
-        root.finishRecovery("recovery_unavailable")
-    }
-  }
-
-  property Connections recoveryAdapterEvents: Connections {
-    target: root.recoveryAdapter
-    function onEnabledChanged() {
-      if (root.recoveryStage !== "" && root.recoveryStage !== "cancellingConnect"
-          && !root.recoveryAdapter.enabled)
-        root.finishRecovery("recovery_unavailable")
-    }
-  }
-
-  onCanRecoverChanged: {
-    if (root.recoveryStage !== "" && root.recoveryStage !== "cancellingConnect"
-        && !root.canRecover)
-      root.finishRecovery("recovery_unavailable")
-  }
-  onTargetAddressChanged: {
-    if (root.recoveryStage !== "" && root.recoveryStage !== "cancellingConnect")
-      root.finishRecovery("recovery_unavailable")
-  }
-  onBtDevicesListChanged: {
-    if (root.recoveryStage !== "") root.updateRecoveryOtherState()
-  }
-  onBleLinkedChanged: {
-    if (root.bleLinked && root.targetAddress === "")
-      root.observedBtAddress = String(root.btDevice.address).toUpperCase()
-  }
-  onBtDeviceChanged: {
-    if (startupRecoveryTimer.running && root.btDevice !== root.startupRecoveryDevice) {
-      root.startupRecoveryAttempted = true
-      startupRecoveryTimer.stop()
-      root.startupRecoveryDevice = null
-    }
-    if (root.recoveryStage !== "" && root.recoveryStage !== "cancellingConnect"
-        && root.btDevice !== root.recoveryDevice)
-      root.finishRecovery("recovery_unavailable")
-    if (root.wakeRetryDevice && root.btDevice !== root.wakeRetryDevice) {
-      root.wakeRetryDevice = null
-      wakeStage2Timer.stop()
-      wakeRetryDeadline.stop()
-    }
-  }
-
-  property Connections wakeDeviceEvents: Connections {
-    target: root.wakeRetryDevice
-    function onStateChanged() {
-      if (root.wakeRetryDevice && root.btDevice === root.wakeRetryDevice
-          && !wakeStage2Timer.running
-          && root.wakeRetryDevice.state !== BluetoothDeviceState.Connecting)
-        root.finishWakeRetry()
-    }
-  }
-
-  function finishWakeRetry() {
-    var device = root.wakeRetryDevice
-    root.wakeRetryDevice = null
-    wakeRetryDeadline.stop()
-    if (device && root.btDevice === device && root.autoReconnect
-        && !root.connected && !root.sleeping && !root.shuttingDown)
-      root.reconnectDevice()
-  }
-
-  function setAutoReconnect(enabled) {
-    var b = !!enabled
-    if (root.autoReconnect !== b) {
-      root.autoReconnect = b
-      saveDebounce.restart()
-    }
-  }
-
-  // The process lifetime includes the Polkit prompt; do not guess with a 3s timer.
-  function checkLowLatency(preserveError) {
-    if (root.lowLatencyBusy || root.sleeping || root.shuttingDown) return
-    if (lowLatencyCheck.running) return
-    if (preserveError !== true) root.lowLatencyFailed = false
-    root.lowLatencyState = "unknown"
-    root.lowLatencyConfigured = false
-    root.lowLatencyHelperAvailable = false
-    root.lowLatencyCanRestore = false
-    root.lowLatencyLegacy = false
-    latencyStatusProcess.adapterAtStart = root.bluetoothAdapter
-    lowLatencyCheck.command = [root.lowLatencyScript, "--status", root.bluetoothAdapter || "-"]
-    lowLatencyCheck.running = true
-  }
-
-  function applyLowLatency() {
-    runLowLatency("--enable")
-  }
-
-  function revertLowLatency() {
-    runLowLatency("--disable")
-  }
-
-  function runLowLatency(action) {
-    if (root.lowLatencyBusy || !root.lowLatencyHelperAvailable) return
-    if (["--enable", "--disable", "--remove-legacy"].indexOf(action) < 0) return
-    if (action === "--enable" && !/^hci[0-9]+$/.test(root.bluetoothAdapter)) return
-    lowLatencyCheck.running = false
-    root.lowLatencyFailed = false
-    lowLatencyApply.command = [root.lowLatencyScript, action, root.bluetoothAdapter || "-"]
-    lowLatencyApply.running = true
-  }
-
-  property Process lowLatencyApply: Process {
-    onExited: function(exitCode) {
-      root.lowLatencyFailed = exitCode !== 0
-      Qt.callLater(function() { root.checkLowLatency(true) })
-    }
-  }
-
-  property Process lowLatencyCheck: Process {
-    id: latencyStatusProcess
-    property string adapterAtStart: ""
-    onExited: {
-      if (adapterAtStart !== root.bluetoothAdapter) Qt.callLater(root.checkLowLatency)
     }
     stdout: StdioCollector {
+      waitForEnd: true
       onStreamFinished: {
-        if (latencyStatusProcess.adapterAtStart !== root.bluetoothAdapter || root.lowLatencyBusy) return
         try {
-          let result = JSON.parse(text)
-          root.lowLatencyHelperAvailable = result.version === 1 && result.helperAvailable === true
-          root.lowLatencyCanRestore = result.canRestore === true
-          root.lowLatencyLegacy = result.state === "legacy"
-          root.lowLatencyConfigured = result.configured === true
-          root.lowLatencyState = ["applied", "partial", "off", "unknown", "unavailable", "legacy", "restart", "restore_pending"].indexOf(result.state) >= 0 ? result.state : "unknown"
-        } catch (e) {
-          root.lowLatencyState = "unknown"
+          if (text.length > 4096) throw new Error("Oversized telemetry")
+          var result = JSON.parse(text)
+          root.telemetry = result
+          root.telemetryError = result.error || ""
+        } catch (_) {
+          root.telemetry = ({})
+          root.telemetryError = "Unable to read LAMZU status"
         }
       }
     }
   }
-
-  property Timer connectingResetTimer: Timer {
-    interval: 8000
-    repeat: false
-    onTriggered: { root.isConnecting = false }
-  }
-
-  // MAC / hardware address
-  readonly property string macAddress: {
-    if (root.matchedPower) return root.matchedPower.identity.address
-    if (btDevice && btDevice.address) return String(btDevice.address).toUpperCase()
-    if (root.targetAddress !== "") return root.targetAddress.toUpperCase()
-    return "046D:B01D"
-  }
-
-  // Every level is approximate: this MX Ergo interface does not expose verified SOC.
-  readonly property string batteryTier: Battery.tier(root.connected, root.isCharging,
-    root.matchedPower ? root.matchedPower.capacityLevel : "",
-    root.upDevice ? root.upDevice.iconName : "",
-    !!(root.bleLinked && root.btDevice.batteryAvailable),
-    root.btDevice ? root.btDevice.battery : null)
-  // Show the reported category; the hint explains that exact charge is unavailable.
-  readonly property string batteryLevelText: Battery.label(root.connected, root.isCharging, root.batteryTier,
-    function(key) { return root.t(key) })
-  readonly property string batteryReportText: root.batteryTier || root.isCharging
-    ? root.t("battery_reported")
-    : root.t("battery_estimate_hint")
-  readonly property string batterySourceDifference: {
-    if (!root.connected || !root.matchedPower || !root.bleLinked
-        || !root.btDevice.batteryAvailable) return ""
-    var hid = Battery.levelTier(root.matchedPower.capacityLevel)
-    var ble = Battery.reportedTier(root.btDevice.battery)
-    if (!hid || !ble || hid === ble) return ""
-    return "HID++: " + root.t("battery_" + hid)
-      + " · Bluetooth: " + root.t("battery_" + ble)
-  }
-  readonly property string batteryIcon: root.isCharging ? "󰂄" : "󰂑"
-
-  readonly property string transportText: {
-    if (root.transport === "ble") return I18n.t("transport_ble", root.effectiveLanguage)
-    if (root.transport === "unifying") return I18n.t("transport_unifying", root.effectiveLanguage)
-    return I18n.t("disconnected", root.effectiveLanguage)
+  property Timer telemetryTimer: Timer {
+    interval: root.panelOpen || root.connectionUnknown ? 10000 : 60000
+    running: !root.sleeping
+    repeat: true
+    onTriggered: root.refreshTelemetry()
   }
 
   function t(key) {
@@ -1235,95 +576,95 @@ QtObject {
       return lua
     } else if (action === "profile_next") {
       let axis = code === "mouse_left" || code === "mouse_right"
-      let command = "omarchy-shell io.github.pavellizunov.mx-ergo " + (axis ? "nextProfileFromWheel" : "nextProfile")
-      lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Next Profile\", " + JSON.stringify(command)
+      let command = "omarchy-shell slovn.lamzu " + (axis ? "nextProfileFromWheel" : "nextProfile")
+      lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Next Profile\", " + JSON.stringify(command)
         + ", { release = " + (axis ? "false" : "true") + " })\n"
     } else if (action === "workspace_next") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Next Workspace\", hl.dsp.focus({ workspace = \"e+1\" }))\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Next Workspace\", hl.dsp.focus({ workspace = \"e+1\" }))\n"
     } else if (action === "workspace_prev") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Prev Workspace\", hl.dsp.focus({ workspace = \"e-1\" }))\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Prev Workspace\", hl.dsp.focus({ workspace = \"e-1\" }))\n"
     } else if (action === "window_close") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Close Window\", hl.dsp.window.close())\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Close Window\", hl.dsp.window.close())\n"
     } else if (action === "window_float") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Toggle Floating\", hl.dsp.window.float({ action = \"toggle\" }))\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Toggle Floating\", hl.dsp.window.float({ action = \"toggle\" }))\n"
     } else if (action === "window_fullscreen") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Fullscreen\", hl.dsp.window.fullscreen({ mode = \"fullscreen\" }))\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Fullscreen\", hl.dsp.window.fullscreen({ mode = \"fullscreen\" }))\n"
     } else if (action === "window_next") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Next Window\", hl.dsp.window.cycle_next())\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Next Window\", hl.dsp.window.cycle_next())\n"
     } else if (action === "overview") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Overview\", \"omarchy-shell moorgrove.overview toggle\")\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Overview\", \"omarchy-shell moorgrove.overview toggle\")\n"
     } else if (action === "screenshot") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Screenshot\", \"omarchy-capture-screenshot\")\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Screenshot\", \"omarchy-capture-screenshot\")\n"
     } else if (action === "media_play_pause") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Play/Pause\", \"playerctl play-pause\")\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Play/Pause\", \"playerctl play-pause\")\n"
     } else if (action === "media_next") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Next Track\", \"playerctl next\")\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Next Track\", \"playerctl next\")\n"
     } else if (action === "media_prev") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Prev Track\", \"playerctl previous\")\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Prev Track\", \"playerctl previous\")\n"
     } else if (action === "mute") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Toggle Mute\", \"wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle\")\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Toggle Mute\", \"wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle\")\n"
     } else if (action === "tab_next") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Next Tab\", \"wtype -M ctrl -k Tab\")\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Next Tab\", \"wtype -M ctrl -k Tab\")\n"
     } else if (action === "tab_prev") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Prev Tab\", \"wtype -M ctrl -M shift -k Tab\")\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Prev Tab\", \"wtype -M ctrl -M shift -k Tab\")\n"
     } else if (action === "browser_back") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Browser Back\", \"wtype -M alt -k Left\")\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Browser Back\", \"wtype -M alt -k Left\")\n"
     } else if (action === "browser_forward") {
-      lua += "o.bind(\"" + code + "\", \"MX Ergo: Browser Forward\", \"wtype -M alt -k Right\")\n"
+      lua += "o.bind(\"" + code + "\", \"LAMZU THORN: Browser Forward\", \"wtype -M alt -k Right\")\n"
     } else if (action === "custom_shortcut") {
       let sc = buttonProfile ? buttonProfile.customShortcuts[btnKey] : getCustomShortcut(btnKey)
       if (sc !== "") {
         let norm = sc.toUpperCase().replace(/,/g, " ").replace(/\+/g, " ").trim().replace(/\s+/g, " ")
         let wsMatch = norm.match(/^(SUPER|WIN|LOGO)\s+([0-9]+)$/)
         if (wsMatch) {
-          lua += "o.bind(" + JSON.stringify(code) + ", " + JSON.stringify("MX Ergo: Workspace " + wsMatch[2]) + ", hl.dsp.focus({ workspace = \"" + wsMatch[2] + "\" }))\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", " + JSON.stringify("LAMZU THORN: Workspace " + wsMatch[2]) + ", hl.dsp.focus({ workspace = \"" + wsMatch[2] + "\" }))\n"
         } else if (norm === "SUPER CTRL TAB" || norm === "SUPER CONTROL TAB" || norm === "WIN CTRL TAB" || norm === "WIN CONTROL TAB") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Former Workspace\", hl.dsp.focus({ workspace = \"previous\" }))\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Former Workspace\", hl.dsp.focus({ workspace = \"previous\" }))\n"
         } else if (norm === "SUPER SHIFT TAB" || norm === "WIN SHIFT TAB") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Prev Workspace\", hl.dsp.focus({ workspace = \"e-1\" }))\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Prev Workspace\", hl.dsp.focus({ workspace = \"e-1\" }))\n"
         } else if (norm === "SUPER TAB" || norm === "WIN TAB") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Next Workspace\", hl.dsp.focus({ workspace = \"e+1\" }))\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Next Workspace\", hl.dsp.focus({ workspace = \"e+1\" }))\n"
         } else if (norm === "SUPER W" || norm === "SUPER Q" || norm === "WIN W" || norm === "WIN Q") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Close Window\", hl.dsp.window.close())\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Close Window\", hl.dsp.window.close())\n"
         } else if (norm === "SUPER F" || norm === "WIN F") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Fullscreen\", hl.dsp.window.fullscreen({ mode = \"fullscreen\" }))\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Fullscreen\", hl.dsp.window.fullscreen({ mode = \"fullscreen\" }))\n"
         } else if (norm === "SUPER T" || norm === "WIN T") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Toggle Float\", hl.dsp.window.float({ action = \"toggle\" }))\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Toggle Float\", hl.dsp.window.float({ action = \"toggle\" }))\n"
         } else if (norm === "SUPER SPACE" || norm === "WIN SPACE") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Menu\", \"omarchy-menu toggle\")\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Menu\", \"omarchy-menu toggle\")\n"
         } else if (norm === "SUPER S" || norm === "WIN S") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Scratchpad\", hl.dsp.workspace.toggle_special(\"scratchpad\"))\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Scratchpad\", hl.dsp.workspace.toggle_special(\"scratchpad\"))\n"
         } else if (norm === "SUPER LEFT" || norm === "WIN LEFT") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Focus Left\", hl.dsp.focus({ direction = \"l\" }))\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Focus Left\", hl.dsp.focus({ direction = \"l\" }))\n"
         } else if (norm === "SUPER RIGHT" || norm === "WIN RIGHT") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Focus Right\", hl.dsp.focus({ direction = \"r\" }))\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Focus Right\", hl.dsp.focus({ direction = \"r\" }))\n"
         } else if (norm === "SUPER UP" || norm === "WIN UP") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Focus Up\", hl.dsp.focus({ direction = \"u\" }))\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Focus Up\", hl.dsp.focus({ direction = \"u\" }))\n"
         } else if (norm === "SUPER DOWN" || norm === "WIN DOWN") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Focus Down\", hl.dsp.focus({ direction = \"d\" }))\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Focus Down\", hl.dsp.focus({ direction = \"d\" }))\n"
         } else if (norm === "INSERT" || norm === "INS") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Voxtype Dictation\", \"voxtype record toggle\")\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Voxtype Dictation\", \"voxtype record toggle\")\n"
         } else if (norm === "SUPER INSERT" || norm === "WIN INSERT") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Voice Agent\", \"omarchy-voice-agent toggle || omarchy-voice-agent start\")\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Voice Agent\", \"omarchy-voice-agent toggle || omarchy-voice-agent start\")\n"
         } else if (norm === "SUPER ALT A" || norm === "WIN ALT A") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: TTS Clipboard\", " + JSON.stringify(shellQuote(root.configHome + "/omarchy/plugins/io.github.hikari112.tts/bin/speak") + " --clipboard") + ")\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: TTS Clipboard\", " + JSON.stringify(shellQuote(root.configHome + "/omarchy/plugins/io.github.hikari112.tts/bin/speak") + " --clipboard") + ")\n"
         } else if (norm === "SUPER ALT E" || norm === "WIN ALT E") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: TTS Selection\", " + JSON.stringify(shellQuote(root.configHome + "/omarchy/plugins/io.github.hikari112.tts/bin/speak") + " --toggle") + ")\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: TTS Selection\", " + JSON.stringify(shellQuote(root.configHome + "/omarchy/plugins/io.github.hikari112.tts/bin/speak") + " --toggle") + ")\n"
         } else if (norm === "SUPER ALT X" || norm === "WIN ALT X") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: TTS Stop\", " + JSON.stringify(shellQuote(root.configHome + "/omarchy/plugins/io.github.hikari112.tts/bin/speak") + " --stop") + ")\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: TTS Stop\", " + JSON.stringify(shellQuote(root.configHome + "/omarchy/plugins/io.github.hikari112.tts/bin/speak") + " --stop") + ")\n"
         } else if (norm === "SUPER ALT R" || norm === "WIN ALT R") {
-          lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: TTS Snip\", " + JSON.stringify(shellQuote(root.configHome + "/omarchy/plugins/io.github.hikari112.tts/bin/speak") + " --snip") + ")\n"
+          lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: TTS Snip\", " + JSON.stringify(shellQuote(root.configHome + "/omarchy/plugins/io.github.hikari112.tts/bin/speak") + " --snip") + ")\n"
         } else {
           let wcmd = shortcutToWtype(sc)
           if (wcmd !== "") {
-            lua += "o.bind(" + JSON.stringify(code) + ", " + JSON.stringify("MX Ergo: " + sc) + ", " + JSON.stringify(wcmd) + ")\n"
+            lua += "o.bind(" + JSON.stringify(code) + ", " + JSON.stringify("LAMZU THORN: " + sc) + ", " + JSON.stringify(wcmd) + ")\n"
           }
         }
       }
     } else if (action === "custom_command") {
       let rawCmd = buttonProfile ? buttonProfile.customCommands[btnKey] : getCustomCommand(btnKey)
       if (rawCmd !== "") {
-        lua += "o.bind(" + JSON.stringify(code) + ", \"MX Ergo: Command\", " + JSON.stringify(rawCmd) + ")\n"
+        lua += "o.bind(" + JSON.stringify(code) + ", \"LAMZU THORN: Command\", " + JSON.stringify(rawCmd) + ")\n"
       }
     }
     return lua
@@ -1331,26 +672,52 @@ QtObject {
 
   function applyButtonBind(btnKey, action) { applyAllSettings() }
 
+  function suflyorHold(code, action, key, profile) {
+    if (action !== "custom_shortcut") return null
+    var shortcut = profile ? profile.customShortcuts[key] : getCustomShortcut(key)
+    var parsed
+    try { parsed = Profiles.shortcut(shortcut) } catch (_) { return null }
+    if (!parsed || parsed.key !== "F9" || (parsed.modmask !== 64 && parsed.modmask !== 65)) return null
+    // Suflyor's native PTT protocol needs both edges of the physical button.
+    // Sending a complete synthetic key chord cannot preserve the hold duration.
+    var mode = parsed.modmask === 64 ? "mic" : "sys"
+    var description = "LAMZU THORN: Suflyor PTT " + mode
+    var executable = Quickshell.env("HOME") + "/.local/lib/suflyor-omarchy/suflyord"
+    var command = "env XDG_CONFIG_HOME=" + shellQuote(root.configHome) + " " + shellQuote(executable) + " --command ptt-" + mode
+    var lua = ""
+    for (let release of [false, true]) {
+      lua += "o.bind(" + JSON.stringify(code) + ", " + JSON.stringify(description) + ", "
+        + JSON.stringify(command + (release ? "-up" : "-down"))
+        + ", { release = " + (release ? "true" : "false") + ", ignore_mods = true })\n"
+    }
+    return {lua: lua, expected: {description: description, hold: true}}
+  }
+
   function buildSettingsRequest() {
     var tx = root.profileTransaction
     var selected = tx ? Profiles.find(root.buttonProfiles, tx.rollback ? tx.fromId : tx.toId) : null
     var lua = "do\n"
-    if (root.hyprDeviceName !== "") {
+    for (let deviceName of ["compx-lamzu-thorn-1", "compx-lamzu-pro-1k-receiver-1"]) {
       let sensitivity = Number(root.sensitivity)
       if (!isFinite(sensitivity)) throw new Error("Invalid sensitivity")
       let profile = root.accelProfile
       if (profile !== "adaptive" && profile !== "flat") throw new Error("Invalid acceleration profile")
-      lua += "hl.device({ name = " + JSON.stringify(root.hyprDeviceName)
+      lua += "hl.device({ name = " + JSON.stringify(deviceName)
         + ", sensitivity = " + Math.max(-1, Math.min(1, sensitivity)).toFixed(2)
         + ", accel_profile = " + JSON.stringify(profile)
         + ", natural_scroll = " + (root.naturalScroll ? "true" : "false") + " })\n"
     }
-    var buttons = { "mouse:275": "back", "mouse:276": "forward", "mouse:274": "middle",
-      "mouse_left": "tiltLeft", "mouse:278": "tiltLeft", "mouse_right": "tiltRight", "mouse:279": "tiltRight" }
+    var buttons = { "mouse:275": "back", "mouse:276": "forward", "mouse:274": "middle" }
     var expected = {}
     for (let code in buttons) {
       let key = buttons[code]
       let action = selected ? selected.buttons[key] : getButtonAction(key)
+      let hold = suflyorHold(code, action, key, selected)
+      if (hold) {
+        expected[code] = hold.expected
+        lua += hold.lua
+        continue
+      }
       let snippet = buildBindSnippet(code, action, key, selected)
       // Read the description from the same generated bind, including JSON escapes.
       let match = snippet.match(/o\.bind\([^,]+,\s*("(?:\\.|[^"\\])*")/)
@@ -1389,7 +756,7 @@ QtObject {
     } catch (_) {
       pendingSettingsRequest = null
       settingsRecoveryFailed = true
-      console.warn("MX Ergo: invalid settings; application skipped")
+      console.warn("LAMZU THORN: invalid settings; application skipped")
       if (root.profileBusy) root.finishProfileApply(false, "")
     }
   }
@@ -1430,8 +797,8 @@ QtObject {
         root.finishProfileApply(ok, error)
     }
     settingsApplying = false
-    if (ok) console.info("MX Ergo: settings applied and button bindings verified")
-    else console.warn("MX Ergo: settings verification failed after bounded recovery")
+    if (ok) console.info("LAMZU THORN: settings applied and button bindings verified")
+    else console.warn("LAMZU THORN: settings verification failed after bounded recovery")
     Qt.callLater(drainSettingsRequest)
   }
 
@@ -1465,29 +832,12 @@ QtObject {
   }
   Component.onDestruction: {
     root.shuttingDown = true
-    root.recoveryStage = ""
-    recoveryStepTimer.stop()
-    recoveryCleanupTimer.stop()
-    recoveryScanProcess.running = false
-    recoveryCancelProcess.running = false
-    startupRecoveryTimer.stop()
-    sleepRetry.stop()
-    sleepStartCheck.stop()
-    wakeReconnectTimer.stop()
-    wakeStage2Timer.stop()
-    wakeRetryDeadline.stop()
-    root.wakeRetryDevice = null
-    saveDebounce.stop()
-    profileWheelLatch.stop()
-    applyDebounce.stop()
+    telemetryProcess.running = false
     sleepMonitor.running = false
-    pendingSettingsRequest = null
-    settingsStartCheck.stop()
-    settingsDeadline.stop()
-    if (settingsApplier.running) settingsApplier.running = false
+    settingsApplier.running = false
   }
 
-  // Config persistence (saves to ~/.config/omarchy/mx-ergo.json via safe discrete argv without shell execution)
+  // Config persistence (saves to ~/.config/omarchy/lamzu.json via safe discrete argv without shell execution)
   function saveConfig() {
     if (!root.configReadComplete || root.profileBusy || root.configLoadFailed) return
     root.storeActiveProfile()
@@ -1496,7 +846,6 @@ QtObject {
       sensitivity: root.sensitivity,
       accelProfile: root.accelProfile,
       naturalScroll: root.naturalScroll,
-      autoReconnect: root.autoReconnect,
       profiles: root.buttonProfiles,
       activeProfileId: root.activeProfileId,
       profileShortcut: root.profileShortcut
@@ -1526,7 +875,7 @@ QtObject {
     root.configStored = exitCode === 0
     root.configWriting = false
     if (exitCode === 0) root.configLoadFailed = false
-    else console.warn("MX Ergo: preferences could not be saved")
+    else console.warn("LAMZU THORN: preferences could not be saved")
     Qt.callLater(root.drainConfigWrite)
   }
   function retrySettings() {
@@ -1561,7 +910,7 @@ QtObject {
       configReadStartCheck.stop()
       root.configReadComplete = true
       if (exitCode !== 0) root.configLoadFailed = true
-      if (exitCode !== 0) console.warn("MX Ergo: invalid or unreadable preferences; using defaults without applying them")
+      if (exitCode !== 0) console.warn("LAMZU THORN: invalid or unreadable preferences; using defaults without applying them")
     }
     stdout: StdioCollector {
       waitForEnd: true
@@ -1575,7 +924,6 @@ QtObject {
           if (typeof cfg.sensitivity === "number") root.sensitivity = cfg.sensitivity
           if (typeof cfg.accelProfile === "string") root.accelProfile = cfg.accelProfile
           if (typeof cfg.naturalScroll === "boolean") root.naturalScroll = cfg.naturalScroll
-          if (typeof cfg.autoReconnect === "boolean") root.autoReconnect = cfg.autoReconnect
           root.loadProfileConfig(cfg)
           root.configStored = true
           root.applyAllSettings()
@@ -1606,20 +954,13 @@ QtObject {
   function prepareForSleep(asleep) {
     root.sleeping = asleep
     if (asleep) {
-      root.startupRecoveryAttempted = true
-      startupRecoveryTimer.stop()
-      if (root.recoveryStage !== "" && root.recoveryStage !== "cancellingConnect")
-        root.finishRecovery("recovery_cancelled")
-      wakeReconnectTimer.stop()
-      wakeStage2Timer.stop()
-      wakeRetryDeadline.stop()
-      root.wakeRetryDevice = null
+      telemetryProcess.running = false
       if (settingsApplier.running) settingsApplier.signal(15)
     } else {
       root.sleepMonitorRestarts = 0
       root.sleepMonitorFailed = false
+      root.refreshTelemetry()
       if (root.settingsConfigured) root.applyAllSettings()
-      if (root.autoReconnect) wakeReconnectTimer.restart()
     }
   }
   function scheduleSleepMonitorRetry() {
@@ -1644,53 +985,11 @@ QtObject {
     }
   }
 
-  // One owned, bounded scan after startup; a live or manually repaired link
-  // consumes the opportunity so an ordinary later disconnect does not scan.
-  property Timer startupRecoveryTimer: Timer {
-    interval: 5000
-    repeat: false
-    onTriggered: root.startStartupRecovery()
-  }
-
-  // Bounded reconnection attempts after the controller has had time to resume.
-  property Timer wakeReconnectTimer: Timer {
-    interval: 2000
-    repeat: false
-    onTriggered: {
-      if (root.autoReconnect && !root.connected && !root.sleeping) {
-        if (root.reconnectDevice()) {
-          root.wakeRetryDevice = root.btDevice
-          // Wait for the first Quickshell Connect to settle before retrying.
-          wakeStage2Timer.restart()
-          wakeRetryDeadline.restart()
-        }
-      }
-    }
-  }
-
-  property Timer wakeStage2Timer: Timer {
-    interval: 10000
-    repeat: false
-    onTriggered: {
-      if (root.wakeRetryDevice
-          && root.wakeRetryDevice.state !== BluetoothDeviceState.Connecting)
-        root.finishWakeRetry()
-    }
-  }
-  property Timer wakeRetryDeadline: Timer {
-    interval: 60000
-    repeat: false
-    onTriggered: { root.wakeRetryDevice = null }
-  }
-
   Component.onCompleted: {
-    console.info("MX Ergo: model loaded with categorical battery display and Hyprland reload recovery")
-    console.info("MX Ergo: named button profiles v2 ready")
-    Qt.callLater(root.logConnectionState)
     root.loadProfileConfig(null)
-    checkLowLatency()
     configLoader.running = true
     configReadStartCheck.restart()
+    root.refreshTelemetry()
     sleepMonitor.running = true
     sleepStartCheck.restart()
   }

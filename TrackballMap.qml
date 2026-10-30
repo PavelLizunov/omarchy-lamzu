@@ -19,20 +19,17 @@ Item {
   property string selectedButton: "back"
   property bool hasCursor: false
   readonly property Item selectedControl: selectedButton === "forward" ? forwardCallout
-    : selectedButton === "middle" ? middleCallout : selectedButton === "tiltLeft" ? leftCallout
-    : selectedButton === "tiltRight" ? rightCallout : backCallout
+    : selectedButton === "middle" ? middleCallout : backCallout
   signal selectionRequested(string buttonKey)
+  signal clicked(string buttonKey)
 
-  implicitHeight: Math.max(device.y + device.height, leftLabels.y + leftLabels.height,
-                           rightLabels.y + rightLabels.height) + gap
+  implicitHeight: Math.max(device.y + device.height, leftLabels.y + leftLabels.height) + gap
 
-  // Coordinates refer to the bundled 1024 × 1536 cutout, including its transparent margins.
+  // Coordinates refer to the device item coordinate space.
   readonly property var locations: ({
-    forward: { x: 0.300, y: 0.147, w: 0.043, h: 0.085 },
-    back: { x: 0.302, y: 0.254, w: 0.043, h: 0.089 },
-    middle: { x: 0.550, y: 0.229, w: 0.090, h: 0.117 },
-    tiltLeft: { x: 0.452, y: 0.229, w: 0.055, h: 0.045 },
-    tiltRight: { x: 0.649, y: 0.229, w: 0.055, h: 0.045 }
+    forward: { x: 0.296, y: 0.400, w: 0.026, h: 0.110 },
+    back: { x: 0.298, y: 0.535, w: 0.026, h: 0.110 },
+    middle: { x: 0.495, y: 0.230, w: 0.055, h: 0.105 }
   })
 
   function buttonInfo(key) {
@@ -43,23 +40,10 @@ Item {
   }
 
   function selectButton(key) {
-    if (locations[key] && buttons.some(function (button) { return button.key === key }))
+    if (locations[key] && buttons.some(function (button) { return button.key === key })) {
       selectionRequested(key)
-  }
-
-  Image {
-    id: device
-    objectName: "trackballIllustration"
-    x: (root.width - width) / 2
-    y: middleCallout.height + root.gap * 2
-    width: root.width * 0.70
-    height: width * 1.5
-    source: Qt.resolvedUrl("assets/trackball-map.png")
-    asynchronous: true
-    sourceSize.width: Math.min(1024, Math.ceil(width * 3))
-    fillMode: Image.PreserveAspectFit
-    smooth: true
-    mipmap: true
+      clicked(key)
+    }
   }
 
   component Callout: FocusScope {
@@ -73,9 +57,13 @@ Item {
     readonly property var location: root.locations[buttonKey]
     readonly property bool selected: root.selectedButton === buttonKey
     readonly property color ink: selected ? root.accent : root.foreground
-    readonly property point point: Qt.point(device.x + location.x * device.width,
-                                            device.y + location.y * device.height)
-    readonly property point origin: Qt.point(diagramX + (topSide ? width / 2 : leftSide ? width : 0), diagramY + (topSide ? height : height / 2))
+    readonly property point point: location
+      ? Qt.point(device.x + location.x * device.width, device.y + location.y * device.height)
+      : Qt.point(0, 0)
+    readonly property point origin: Qt.point(
+      diagramX + (topSide ? width / 2 : leftSide ? width : 0),
+      diagramY + (topSide ? height : height / 2)
+    )
     objectName: "callout_" + buttonKey
     implicitHeight: labels.implicitHeight + root.padding * 2
     height: implicitHeight
@@ -102,7 +90,10 @@ Item {
         fillColor: "transparent"
         startX: callout.origin.x
         startY: callout.origin.y
-        PathLine { x: callout.origin.x + (callout.topSide ? 0 : callout.leftSide ? root.gap : -root.gap); y: callout.origin.y + (callout.topSide ? root.gap : 0) }
+        PathLine {
+          x: callout.origin.x + (callout.topSide ? 0 : callout.leftSide ? root.gap : -root.gap)
+          y: callout.origin.y + (callout.topSide ? root.gap : 0)
+        }
         PathLine { x: callout.point.x; y: callout.point.y }
       }
       opacity: callout.selected ? 1 : 0.55
@@ -167,54 +158,49 @@ Item {
 
   Callout {
     id: middleCallout
-    x: (root.width - width) / 2
-    width: root.width * 0.40
+    x: device.x + (device.width - width) / 2
+    width: Math.min(root.width * 0.44, 160)
     buttonKey: "middle"
     leftSide: false
     topSide: true
   }
+
   Column {
     id: leftLabels
-    y: middleCallout.height + root.gap * 2
-    width: root.width * 0.30
+    y: device.y + device.height * 0.30
+    width: root.width * 0.23
     spacing: root.gap * 3
     Callout {
       id: forwardCallout
       width: parent.width
-      height: Math.max(implicitHeight, leftCallout.implicitHeight)
       buttonKey: "forward"
       leftSide: true
     }
     Callout {
       id: backCallout
       width: parent.width
-      height: Math.max(implicitHeight, rightCallout.implicitHeight)
       buttonKey: "back"
       leftSide: true
     }
   }
-  Column {
-    id: rightLabels
-    x: root.width - width
-    y: leftLabels.y
-    width: leftLabels.width
-    spacing: leftLabels.spacing
-    Callout {
-      id: leftCallout
-      width: parent.width
-      height: forwardCallout.height
-      buttonKey: "tiltLeft"
-      leftSide: false
-    }
-    Callout {
-      id: rightCallout
-      width: parent.width
-      height: backCallout.height
-      buttonKey: "tiltRight"
-      leftSide: false
-    }
+
+  Image {
+    id: device
+    objectName: "mouseIllustration"
+    x: (root.width - width) / 2
+    y: middleCallout.height + root.gap
+    width: root.width * 1.20
+    height: width
+    source: Qt.resolvedUrl("assets/thorn-photo.png")
+    asynchronous: true
+    sourceSize.width: Math.min(1600, Math.ceil(width * 3))
+    fillMode: Image.PreserveAspectFit
+    smooth: true
+    mipmap: true
+    z: -1
   }
 
+  // Interactive Hotspots
   Repeater {
     model: root.buttons
     delegate: Rectangle {
@@ -222,33 +208,25 @@ Item {
       required property var modelData
       readonly property var location: root.locations[modelData.key]
       readonly property bool selected: root.selectedButton === modelData.key
-      readonly property bool tilt: modelData.key === "tiltLeft" || modelData.key === "tiltRight"
       objectName: "hotspot_" + modelData.key
-      x: device.x + device.width * location.x - width / 2
-      y: device.y + device.height * location.y - height / 2
-      width: Math.max(root.borderWidth * 8, device.width * location.w)
-      height: Math.max(root.borderWidth * 12, device.height * location.h)
+      x: location ? (device.x + device.width * location.x - width / 2) : 0
+      y: location ? (device.y + device.height * location.y - height / 2) : 0
+      width: location ? Math.max(root.borderWidth * 8, device.width * location.w) : 0
+      height: location ? Math.max(root.borderWidth * 12, device.height * location.h) : 0
       radius: width / 2
       color: selected ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.18) : "transparent"
       border.width: selected || hotspotMouse.containsMouse ? root.borderWidth * 2 : 0
       border.color: root.accent
       Accessible.ignored: true // The corresponding callout supplies the accessible control.
-      Text {
-        anchors.centerIn: parent
-        visible: hotspot.tilt
-        text: hotspot.modelData.key === "tiltLeft" ? "‹" : "›"
-        color: hotspot.selected ? root.accent : root.foreground
-        font.family: root.fontFamily
-        font.pixelSize: root.labelSize * 1.4
-      }
+
       Rectangle {
-        visible: !hotspot.tilt
         anchors.centerIn: parent
         width: root.borderWidth * 4
         height: width
         radius: width / 2
         color: hotspot.selected ? root.accent : root.foreground
       }
+
       MouseArea {
         id: hotspotMouse
         anchors.fill: parent

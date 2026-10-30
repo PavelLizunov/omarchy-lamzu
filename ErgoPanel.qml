@@ -4,7 +4,7 @@ import QtQuick.Controls as Controls
 import qs.Commons
 import qs.Ui
 
-// Trackball controls hosted by the shell keyboard panel.
+// Mouse controls hosted by the shell keyboard panel.
 PanelKeyCatcher {
   id: root
 
@@ -26,17 +26,11 @@ PanelKeyCatcher {
   property bool cursorActive: false
   property string panelPage: "buttons"
   property bool editingButton: false
-  readonly property bool recoveryVisible: connectButton.visible
+  readonly property bool recoveryVisible: false
   Connections {
     target: root.model
     function onActiveProfileIdChanged() {
       if (root.editingButton) root.showPage("buttons")
-    }
-    function onLowLatencyBusyChanged() {
-      if (root.model.lowLatencyBusy) root.advancedExpanded = true
-    }
-    function onLowLatencyFailedChanged() {
-      if (root.model.lowLatencyFailed) root.advancedExpanded = true
     }
   }
   readonly property var languageCodes: ["system", "en", "zh", "es", "ru", "pt", "fr", "de", "ja", "ko", "it"]
@@ -54,6 +48,9 @@ PanelKeyCatcher {
     profilesSection.reset()
     root.panelPage = page
     root.focusIndex = root.cursorActive ? -1 : (page === "buttons" ? 4 : page === "pointer" ? 0 : 5)
+    if (page === "device" && typeof root.model.refreshTelemetry === "function") {
+      root.model.refreshTelemetry()
+    }
     resetViewport()
   }
 
@@ -94,7 +91,7 @@ PanelKeyCatcher {
   }
 
 
-  // Selected physical button: "back" | "forward" | "middle" | "tiltLeft" | "tiltRight"
+  // Selected physical button: "back" | "forward" | "middle"
   property string selectedButton: "back"
   // Button setup mode: "presets" | "shortcut" | "command"
   property string setupMode: "presets"
@@ -102,8 +99,6 @@ PanelKeyCatcher {
   property bool isRecording: false
   // Language picker expanded flag
   property bool languageExpanded: false
-  property bool advancedExpanded: false
-  readonly property bool advancedVisible: advancedExpanded
   // Function keys expanded flag
   property bool fKeysExpanded: false
 
@@ -119,9 +114,7 @@ PanelKeyCatcher {
   readonly property var buttonList: [
     { key: "back", labelKey: "btn_back" },
     { key: "forward", labelKey: "btn_forward" },
-    { key: "middle", labelKey: "btn_middle" },
-    { key: "tiltLeft", labelKey: "btn_tilt_left" },
-    { key: "tiltRight", labelKey: "btn_tilt_right" }
+    { key: "middle", labelKey: "btn_middle" }
   ]
 
   readonly property string selectedAction: root.model.getButtonAction(root.selectedButton)
@@ -149,11 +142,12 @@ PanelKeyCatcher {
     if (!cursorActive || editingButton) return
     if (focusIndex === -2 || focusIndex === -1) { viewport.contentY = 0; return }
     var target = focusIndex >= 10 ? languageGrid : focusIndex === 7 ? profilesSection : focusIndex === -3 ? connectButton : focusIndex === -4 ? retrySettingsButton : focusIndex <= 1 ? profileRow : focusIndex === 2 ? sensitivityColumn
-      : focusIndex === 3 ? naturalRow : focusIndex === 5 ? autoReconnectRow : focusIndex === 6 ? advancedButton : focusIndex === 8 ? profileAction : (btnSelectorRow.selectedControl || btnSelectorRow)
+      : focusIndex === 3 ? naturalRow : focusIndex === 5 ? refreshTelemetryButton : (btnSelectorRow.selectedControl || btnSelectorRow)
     // Shared context/status is on the left; page controls scroll on the right.
     var area = focusIndex >= 10 || focusIndex === 7 || focusIndex === 4 || focusIndex === -4
       ? viewport : settingsViewport
     if (focusIndex === -3) return // Recovery is in the fixed header.
+    if (!target) return
     var y = target.mapToItem(area.contentItem, 0, 0).y
     var next = y < area.contentY ? y : Math.max(area.contentY, y + target.height - area.height)
     area.contentY = Math.max(0, Math.min(area.contentHeight - area.height, next))
@@ -181,10 +175,6 @@ PanelKeyCatcher {
     if (connectButton.visible && connectButton.enabled) order.push(-3)
     if (retrySettingsButton.visible && retrySettingsButton.enabled) order.push(-4)
     order = order.concat([-1, 7, 4], panelPage === "pointer" ? [0, 1, 2, 3] : panelPage === "device" ? [5] : [])
-    if (panelPage === "device") {
-      order.push(6)
-      if (root.advancedVisible && profileAction.enabled) order.push(8)
-    }
     var index = order.indexOf(focusIndex)
     focusIndex = order[(index + dir + order.length) % order.length]
   }
@@ -240,7 +230,6 @@ PanelKeyCatcher {
 
   Component.onCompleted: {
     syncActiveButton()
-    if (root.model.lowLatencyBusy || root.model.lowLatencyFailed) root.advancedExpanded = true
   }
 
   function handleMove(dx, dy) {
@@ -294,13 +283,6 @@ PanelKeyCatcher {
     }
   }
 
-  function activateBluetoothProfile() {
-    if (!root.model.lowLatencyHelperAvailable || root.model.lowLatencyBusy || root.model.lowLatencyState === "restart") return
-    if (root.model.lowLatencyLegacy) root.model.runLowLatency("--remove-legacy")
-    else if (root.model.lowLatencyCanRestore) root.model.revertLowLatency()
-    else root.model.applyLowLatency()
-  }
-
   function handleActivate() {
     cursorActive = true
     if (editingButton) return
@@ -311,11 +293,6 @@ PanelKeyCatcher {
       root.focusIndex = -2
       return
     }
-    if (focusIndex === -3) {
-      if (root.model.recoveryStage !== "") root.model.cancelRecovery()
-      else root.model.recoverDevice()
-      return
-    }
     if (focusIndex === -4) {
       if (retrySettingsButton.visible && retrySettingsButton.enabled) root.model.retrySettings()
       return
@@ -324,9 +301,9 @@ PanelKeyCatcher {
     if (focusIndex === 7) { profilesSection.focusFirst(); return }
     if (focusIndex === 4) { if (!root.model.profileBusy) editButton(selectedButton); return }
     if (panelPage === "device") {
-      if (focusIndex === 5) root.model.setAutoReconnect(!root.model.autoReconnect)
-      else if (focusIndex === 6) root.advancedExpanded = !root.advancedExpanded
-      else if (focusIndex === 8) root.activateBluetoothProfile()
+      if (focusIndex === 5 && typeof root.model.refreshTelemetry === "function") {
+        root.model.refreshTelemetry()
+      }
       return
     }
     if (focusIndex === 0) {
@@ -384,10 +361,10 @@ PanelKeyCatcher {
     PanelHero {
       width: parent.width
       title: root.model.t("plugin_name")
-      meta: root.model.connectionStatusText
+      meta: root.model.connectionStatusText + (root.model.connected ? " · " + root.model.batteryLevelText + (root.model.isCharging ? " · " + root.model.t("battery_charging") : "") : "")
       foreground: root.fgColor
       fontFamily: root.fontFam
-      iconOpacity: root.model.connected ? 1 : 0.45
+      iconOpacity: root.model.connected || root.model.connectionUnknown ? 1 : 0.45
       iconComponent: Component {
         Item {
           implicitWidth: Style.font.display
@@ -395,11 +372,10 @@ PanelKeyCatcher {
           Image {
             id: heroIcon
             anchors.fill: parent
-            source: Qt.resolvedUrl("assets/trackball.svg")
+            source: Qt.resolvedUrl("assets/mouse.svg")
             sourceSize.width: Math.ceil(width * 4)
             sourceSize.height: Math.ceil(height * 4)
-            smooth: true
-            mipmap: true
+            fillMode: Image.PreserveAspectFit
             visible: false
           }
           MultiEffect {
@@ -645,7 +621,7 @@ PanelKeyCatcher {
     Column {
       width: parent.width
       spacing: Style.spacing.controlGap
-      // The profile sets the context for all five physical assignments.
+      // The profile sets the context for all button assignments.
       ButtonProfilesPanel {
         id: profilesSection
         objectName: "buttonProfiles"
@@ -733,34 +709,13 @@ PanelKeyCatcher {
     opacity: 0.2
   }
 
-  // Explicit recovery remains available when BlueZ reports a stale connection.
-  ErgoControl {
+  // Device recovery placeholder (Bluetooth recovery removed for LAMZU THORN)
+  Item {
     id: connectButton
     objectName: "deviceRecovery"
-    enabled: !root.model.recoveryStopping
-      && (root.model.recoveryStage !== "" || (root.model.canStartRecovery && !root.model.isConnecting))
-    hasCursor: root.cursorActive && root.focusIndex === -3
-    Accessible.name: root.model.recoveryStage !== "" ? root.model.t("cancel_recovery")
-      : (root.model.btDevice && root.model.btDevice.connected
-          ? root.model.t("recover_connected_action") : root.model.t("connect_device"))
-    visible: root.model.canRecover || root.model.recoveryBusy
-    x: editorViewport.x
-    y: 0
-    width: editorViewport.width - Style.spacing.controlGap
-    caption: root.model.recoveryStopping ? root.model.t("recovery_stopping")
-      : root.model.recoveryStage !== "" ? root.model.t("cancel_recovery")
-      : ("󰂯 " + (root.model.btDevice && root.model.btDevice.connected
-          ? root.model.t("recover_connected_action") : root.model.t("connect_device")))
-    detail: root.model.recoveryStage === "" && !root.model.recoveryStopping
-      && root.model.recoveryResult !== "" ? root.model.t(root.model.recoveryResult) : ""
-    fontSize: Style.font.bodySmall
-    foreground: root.fgColor
-    fontFamily: root.fontFam
-    bordered: true
-    onClicked: {
-      if (root.model.recoveryStage !== "") root.model.cancelRecovery()
-      else root.model.recoverDevice()
-    }
+    visible: false
+    width: 0
+    height: 0
   }
 
 
@@ -782,27 +737,79 @@ PanelKeyCatcher {
       id: settingsColumn
       width: Math.max(0, settingsViewport.width - Style.spacing.controlGap)
       spacing: Style.spacing.controlGap
-      Text {
-        visible: !root.editingButton && root.model.recoveryResult !== "" && root.panelPage === "device"
-        width: parent.width
-        text: root.model.t(root.model.recoveryResult)
-          + (root.model.recoveryScanNote ? "\n" + root.model.recoveryScanNote : "")
-          + (root.model.recoveryOtherNote ? "\n" + root.model.recoveryOtherNote : "")
-        textFormat: Text.PlainText
-        wrapMode: Text.Wrap
-        color: root.fgColor
-        font.family: root.fontFam
-        font.pixelSize: Style.font.caption
-        Accessible.role: Accessible.StaticText
-        Accessible.name: text
-      }
 
       // Detailed device telemetry belongs to the Device page.
       Column {
         visible: root.panelPage === "device" && !root.editingButton
         width: parent.width
-        spacing: Style.spacing.labelGap
+        spacing: Style.spacing.controlGap
 
+        PanelSectionHeader {
+          text: root.model.t("hardware_status")
+          foreground: root.fgColor
+          fontFamily: root.fontFam
+        }
+
+        // Device name
+        Item {
+          width: parent.width
+          height: deviceNameLabel.implicitHeight
+          implicitHeight: height
+
+          Text {
+            id: deviceNameLabel
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.model.t("device_name")
+            color: root.dim
+            font.family: root.fontFam
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Text {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.model.deviceName || "LAMZU THORN"
+            color: root.fgColor
+            font.family: root.fontFam
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+          }
+        }
+
+        // Connection / Transport status (USB / receiver status)
+        Item {
+          width: parent.width
+          height: transportLabel.implicitHeight
+          implicitHeight: height
+
+          Text {
+            id: transportLabel
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.model.t("transport")
+            color: root.dim
+            font.family: root.fontFam
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Text {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.model.connectionUnknown ? root.model.connectionStatusText : root.model.transportText ? root.model.transportText
+              : (root.model.connected ? root.model.t("connected") : root.model.t("disconnected"))
+            color: root.model.connected ? root.fgColor : root.dim
+            font.family: root.fontFam
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+          }
+        }
+
+        // Real Battery Percentage
         Item {
           width: parent.width
           height: batLabel.implicitHeight
@@ -813,7 +820,7 @@ PanelKeyCatcher {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
-            text: root.model.batteryIcon + "  " + root.model.t("battery")
+            text: (root.model.batteryIcon || "󰂄") + "  " + root.model.t("battery")
             color: root.fgColor
             font.family: root.fontFam
             font.pixelSize: Style.font.bodySmall
@@ -823,9 +830,12 @@ PanelKeyCatcher {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
-            text: root.model.connected
-              ? root.model.batteryLevelText
-              : root.model.t("disconnected")
+            text: !root.model.connected
+              ? root.model.connectionStatusText
+              : ((root.model.batteryPercent !== undefined && root.model.batteryPercent !== null && root.model.batteryPercent !== "")
+                  ? (root.model.batteryPercent + (typeof root.model.batteryPercent === "number" ? "%" : ""))
+                  : (root.model.batteryLevelText || "—"))
+                + (root.model.isCharging ? (" (" + root.model.t("battery_charging") + ")") : "")
             color: root.model.connected ? root.fgColor : root.dim
             font.family: root.fontFam
             font.pixelSize: Style.font.bodySmall
@@ -833,26 +843,100 @@ PanelKeyCatcher {
           }
         }
 
-      Text {
-        width: parent.width
-        visible: root.model.connected
-        text: root.model.batteryReportText
-        textFormat: Text.PlainText
-        wrapMode: Text.WordWrap
-        color: root.dim
-        font.family: root.fontFam
-        font.pixelSize: Style.font.caption
-      }
-      Text {
-        width: parent.width
-        visible: root.model.batterySourceDifference !== ""
-        text: root.model.batterySourceDifference
-        textFormat: Text.PlainText
-        wrapMode: Text.WordWrap
-        color: root.dim
-        font.family: root.fontFam
-        font.pixelSize: Style.font.caption
-      }
+        // Real Sensor DPI (Read-only display)
+        Item {
+          width: parent.width
+          height: dpiLabel.implicitHeight
+          implicitHeight: height
+
+          Text {
+            id: dpiLabel
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.model.t("dpi")
+            color: root.dim
+            font.family: root.fontFam
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Text {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.model.dpi ? (root.model.dpi + " DPI") : "—"
+            color: root.model.connected ? root.fgColor : root.dim
+            font.family: root.fontFam
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+          }
+        }
+
+        // MAC Address / Device ID (if available)
+        Item {
+          visible: Boolean(root.model.macAddress)
+          width: parent.width
+          height: macLabel.implicitHeight
+          implicitHeight: height
+
+          Text {
+            id: macLabel
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: "USB ID"
+            color: root.dim
+            font.family: root.fontFam
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Text {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: root.model.macAddress || ""
+            color: root.fgColor
+            font.family: root.fontFam
+            font.pixelSize: Style.font.bodySmall
+          }
+        }
+
+        // Telemetry Error (if any)
+        Text {
+          visible: Boolean(root.model.telemetryError)
+          width: parent.width
+          text: root.model.telemetryError || ""
+          textFormat: Text.PlainText
+          wrapMode: Text.Wrap
+          color: root.fgColor
+          font.family: root.fontFam
+          font.pixelSize: Style.font.caption
+          Accessible.role: Accessible.StaticText
+          Accessible.name: text
+        }
+
+        Rectangle {
+          width: parent.width
+          height: Style.normalBorderWidth
+          color: root.fgColor
+          opacity: 0.15
+        }
+
+        ErgoControl {
+          id: refreshTelemetryButton
+          objectName: "refreshTelemetryButton"
+          width: parent.width
+          caption: root.model.t("refresh_telemetry")
+          fontSize: Style.font.caption
+          foreground: root.fgColor
+          fontFamily: root.fontFam
+          bordered: true
+          hasCursor: root.cursorActive && root.focusIndex === 5
+          onClicked: {
+            root.focusIndex = 5
+            if (typeof root.model.refreshTelemetry === "function") root.model.refreshTelemetry()
+          }
+        }
       }
 
 
@@ -1031,167 +1115,7 @@ PanelKeyCatcher {
 
       }
 
-      Column {
-        visible: root.panelPage === "device" && !root.editingButton
-        width: parent.width
-        spacing: Style.spacing.controlGap
-        // Auto-reconnect after startup and wake
-        Item {
-          id: autoReconnectRow
-          objectName: "autoReconnectRow"
-          Accessible.role: Accessible.CheckBox
-          Accessible.name: root.model.t("auto_reconnect")
-          Accessible.checkable: true
-          Accessible.checked: root.model.autoReconnect
-          Accessible.onPressAction: root.model.setAutoReconnect(!root.model.autoReconnect)
-          width: parent.width
-          height: Math.max(Style.spacing.controlHeight, autoRecLabel.implicitHeight + Style.space(12))
-          implicitHeight: height
 
-          Text {
-            id: autoRecLabel
-            anchors.right: autoRecSwitch.left
-            anchors.rightMargin: Style.spacing.controlGap
-            wrapMode: Text.Wrap
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: root.model.t("auto_reconnect")
-            color: root.fgColor
-            font.family: root.fontFam
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          ToggleSwitch {
-            id: autoRecSwitch
-            hasCursor: root.cursorActive && root.focusIndex === 5
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            checked: root.model.autoReconnect
-            interactive: false
-            foreground: root.fgColor
-            onToggled: root.model.setAutoReconnect(!root.model.autoReconnect)
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              root.model.setAutoReconnect(!root.model.autoReconnect)
-            }
-          }
-        }
-
-        Rectangle {
-          width: parent.width
-          height: Style.normalBorderWidth
-          color: root.fgColor
-          opacity: 0.15
-        }
-        ErgoControl {
-          id: advancedButton
-          objectName: "deviceAdvanced"
-          width: parent.width
-          caption: root.model.t("advanced_settings")
-          detail: root.advancedExpanded ? "" : root.model.lowLatencyBusy ? root.model.t("latency_busy")
-            : root.model.lowLatencyFailed ? root.model.t("latency_error") : ""
-          marker: root.advancedVisible ? "▴" : "▾"
-          leftAlign: true
-          selected: root.advancedVisible
-          hasCursor: root.cursorActive && root.focusIndex === 6
-          foreground: root.fgColor
-          fontFamily: root.fontFam
-          onClicked: { root.focusIndex = 6; root.advancedExpanded = !root.advancedExpanded }
-        }
-
-        // Controller-wide administrative action, disclosed separately from ordinary device controls.
-        Column {
-          id: latencyRow
-          objectName: "adapterSettings"
-          visible: root.advancedVisible
-          width: parent.width
-          spacing: Style.spacing.controlGap
-          Text {
-            width: parent.width
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            text: root.model.t("polling_rate")
-            color: root.fgColor
-            font.family: root.fontFam
-            font.pixelSize: Style.font.bodySmall
-          }
-          Text {
-            width: parent.width
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            text: root.model.t("low_latency_hint")
-            color: root.dim
-            font.family: root.fontFam
-            font.pixelSize: Style.font.caption
-          }
-          Text {
-            width: parent.width
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            text: root.model.lowLatencyBusy ? root.model.t("latency_busy") : root.model.t("latency_" + root.model.lowLatencyState)
-            color: root.fgColor
-            font.family: root.fontFam
-            font.pixelSize: Style.font.caption
-          }
-          Text {
-            visible: root.model.lowLatencyFailed
-            width: parent.width
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            text: root.model.t("latency_error")
-            color: root.fgColor
-            font.family: root.fontFam
-            font.pixelSize: Style.font.caption
-          }
-          Text {
-            visible: !root.model.lowLatencyHelperAvailable
-            width: parent.width
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            text: root.model.t("latency_setup")
-            color: root.dim
-            font.family: root.fontFam
-            font.pixelSize: Style.font.caption
-          }
-          ActionButton {
-            id: profileAction
-            objectName: "adapterProfileAction"
-            width: parent.width
-            readonly property string actionLabel: root.model.t(root.model.lowLatencyLegacy ? "latency_cleanup" : root.model.lowLatencyCanRestore ? "latency_restore" : "latency_enable")
-            implicitHeight: Math.max(Style.spacing.controlHeight, profileActionLabel.implicitHeight + verticalPadding * 2 + Style.normalBorderWidth * 2)
-            Accessible.name: actionLabel
-            enabled: root.model.lowLatencyHelperAvailable && !root.model.lowLatencyBusy
-              && root.model.lowLatencyState !== "restart"
-              && (root.model.lowLatencyCanRestore || root.model.lowLatencyLegacy || root.model.bluetoothAdapter !== "")
-            hasCursor: root.cursorActive && root.focusIndex === 8
-            foreground: root.fgColor
-            fontFamily: root.fontFam
-            fontSize: Style.font.bodySmall
-            bordered: true
-            onClicked: root.activateBluetoothProfile()
-            Text {
-              id: profileActionLabel
-              anchors.left: parent.left
-              anchors.right: parent.right
-              anchors.margins: profileAction.horizontalPadding + Style.normalBorderWidth
-              anchors.verticalCenter: parent.verticalCenter
-              text: profileAction.actionLabel
-              textFormat: Text.PlainText
-              wrapMode: Text.Wrap
-              horizontalAlignment: Text.AlignHCenter
-              font.family: root.fontFam
-              font.pixelSize: Style.font.bodySmall
-              color: root.fgColor
-            }
-          }
-        }
-
-      }
 
 
     }
@@ -1272,7 +1196,7 @@ PanelKeyCatcher {
     objectName: "assignmentViewport"
     visible: root.editingButton
     x: root.overviewWidth + Style.spacing.controlGap + Style.space(16)
-    y: Math.max(pageTabs.y, connectButton.visible ? connectButton.height + Style.spacing.controlGap : 0)
+    y: pageTabs.y
     width: Math.max(0, root.width - x - Style.spacing.controlGap)
     height: Math.max(0, root.height - y)
     contentWidth: width

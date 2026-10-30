@@ -1,16 +1,40 @@
 {
   "schemaVersion": 1,
   "id": "slovn.lamzu",
-  "name": "LAMZU battery",
-  "version": "1.0.0",
-  "author": "slovn",
-  "description": "Battery status of the LAMZU 1K receiver",
-  "kinds": ["bar-widget"],
-  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "name": "LAMZU THORN",
+  "version": "2.0.0",
+  "author": "PavelLizunov",
+  "license": "MIT",
+  "description": "LAMZU THORN battery, button profiles, shortcuts and pointer settings, adapted from MX Ergo.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
   "barWidget": {
-    "displayName": "LAMZU battery",
-    "description": "Battery status of the LAMZU 1K receiver",
+    "displayName": "LAMZU THORN",
+    "description": "Button profiles, pointer controls and USB/wireless telemetry",
     "category": "Hardware",
-    "allowMultiple": false
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "locale": "system",
+      "hideWhenDisconnected": false
+    },
+    "schema": [
+      {
+        "key": "locale",
+        "type": "string",
+        "label": "Interface language",
+        "defaultValue": "system"
+      },
+      {
+        "key": "hideWhenDisconnected",
+        "type": "boolean",
+        "label": "Hide when disconnected",
+        "defaultValue": false
+      }
+    ]
   }
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import re
 import signal
 import subprocess
 import sys
@@ -11,17 +12,9 @@ MAX_LUA_LEN = 65536
 MAX_OUTPUT_BYTES = 1048576  # 1 MiB bounded read
 TIMEOUT_SECONDS = 5.0
 DELAYS = [0.0, 2.0, 4.0]
-EXPECTED_KEYS = {
-    "mouse:275",
-    "mouse:276",
-    "mouse:274",
-    "mouse_left",
-    "mouse:278",
-    "mouse_right",
-    "mouse:279",
-}
-PROFILE_COMMAND = "omarchy-shell io.github.pavellizunov.mx-ergo nextProfile"
-PROFILE_DESCRIPTION = "MX Ergo: Next Profile (keyboard)"
+EXPECTED_KEYS = {"mouse:275", "mouse:276", "mouse:274"}
+PROFILE_COMMAND = "omarchy-shell slovn.lamzu nextProfile"
+PROFILE_DESCRIPTION = "LAMZU THORN: Next Profile (keyboard)"
 MODIFIERS = [(64, "SUPER"), (4, "CTRL"), (8, "ALT"), (1, "SHIFT")]
 SHORTCUT_KEYS = {"space", "Return", "Escape", "Tab", "BackSpace", "Delete", "Insert",
                  "Home", "End", "Prior", "Next", "Left", "Right", "Up", "Down", "Print", "Pause", "Menu"}
@@ -53,7 +46,10 @@ def _validate_payload(raw_json: str):
 
     for k, v in expected.items():
         if isinstance(v, dict):
-            if v != {"description": "MX Ergo: Next Profile", "release": k not in ("mouse_left", "mouse_right"),
+            if v in ({"description": "LAMZU THORN: Suflyor PTT mic", "hold": True},
+                     {"description": "LAMZU THORN: Suflyor PTT sys", "hold": True}):
+                continue
+            if v != {"description": "LAMZU THORN: Next Profile", "release": k not in ("mouse_left", "mouse_right"),
                      "dispatcher": "__lua"}:
                 raise ValueError(f"Invalid profile target for {k}")
         elif v is not None and (not isinstance(v, str) or len(v) > 4096):
@@ -155,7 +151,8 @@ def _prepare_shortcut(shortcut):
     for binding in owned:
         if any(_shortcut_conflict(other, binding) and not _owned_shortcut(other) for other in binds):
             raise ValueError("shortcut_conflict")
-    lua = "do\nlocal owned = _G.mx_ergo_profile_shortcut\n"
+    lua = ("do\nlocal owned = _G.lamzu_profile_shortcut\n"
+           "if owned and tostring(owned) == 'HL.Keybind(expired)' then owned = nil end\n")
     # Hyprland's Lua callbacks appear as __lua/registry ID, not exec/command.
     # A matching description alone never grants cleanup authority: the live
     # binding handle must still match the callback reported by the compositor.
@@ -163,12 +160,35 @@ def _prepare_shortcut(shortcut):
         lua += ("if not owned or owned.arg ~= " + json.dumps(binding["arg"])
                 + " or owned.description ~= " + json.dumps(PROFILE_DESCRIPTION)
                 + " then error('shortcut_conflict') end\n")
-    lua += "if owned then owned:unbind() end\n_G.mx_ergo_profile_shortcut = nil\n"
+    lua += "if owned then owned:unbind() end\n_G.lamzu_profile_shortcut = nil\n"
     if shortcut:
-        lua += ("_G.mx_ergo_profile_shortcut = hl.bind(" + json.dumps(shortcut["keys"])
+        lua += ("_G.lamzu_profile_shortcut = hl.bind(" + json.dumps(shortcut["keys"])
                 + ", hl.dsp.exec_cmd(" + json.dumps(PROFILE_COMMAND) + "), { description = "
                 + json.dumps(PROFILE_DESCRIPTION) + ", release = true })\n")
     return lua + "end\n"
+
+
+def _scope_lua(lua):
+    # Strip the reference generator's broad unbind calls. Hyprland 0.56.2
+    # handle removal also removes both edges of a PTT key; the next handle
+    # expires, and calling any of its methods can segfault outside Lua pcall.
+    lua = re.sub(r'pcall\(function\(\) hl\.unbind\("(?:mouse:\d+|mouse_left|mouse_right)"\) end\)\n', '', lua)
+    prefix = """do
+local owned = _G.lamzu_button_handles or {}
+for _, handle in ipairs(owned) do
+  if tostring(handle) ~= 'HL.Keybind(expired)' then handle:unbind() end
+end
+_G.lamzu_button_handles = {}
+local o = {}
+function o.bind(keys, description, dispatcher, options)
+  local opts = options or {}
+  opts.description = description
+  opts.device = { inclusive = true, list = {"compx-lamzu-thorn-1", "compx-lamzu-pro-1k-receiver-1"} }
+  if type(dispatcher) == 'string' then dispatcher = hl.dsp.exec_cmd(dispatcher) end
+  table.insert(_G.lamzu_button_handles, hl.bind(keys, dispatcher, opts))
+end
+"""
+    return prefix + lua + "\nend\n"
 
 
 def _check_binds(expected: dict, shortcut=None, manage_shortcut=False):
@@ -183,7 +203,16 @@ def _check_binds(expected: dict, shortcut=None, manage_shortcut=False):
             if b.get("key") == key
             and b.get("modmask") == 0
             and b.get("submap") == ""
+            and str(b.get("description", "")).startswith('LAMZU THORN:')
         ]
+
+        if isinstance(target, dict) and target.get("hold") is True:
+            if (len(matches) != 2 or {b.get("release") for b in matches} != {False, True}
+                    or any(b.get("description") != target["description"]
+                           or b.get("dispatcher") != "__lua" or b.get("repeat", False)
+                           for b in matches)):
+                return False, f"PTT press/release binding mismatch for {key}"
+            continue
 
         if target is None:
             if len(matches) != 0:
@@ -236,7 +265,7 @@ def main():
 
         try:
             prefix = _prepare_shortcut(shortcut) if manage_shortcut else ""
-            rc, out = _run_bounded(["hyprctl", "eval", prefix + lua])
+            rc, out = _run_bounded(["hyprctl", "eval", prefix + _scope_lua(lua)])
             if rc != 0 or out.strip() != "ok":
                 last_error = "shortcut_conflict" if "shortcut_conflict" in out else "hyprctl eval failed"
                 if last_error == "shortcut_conflict":
